@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Check, Copy, QrCode, Translate, UserPlus } from '@phosphor-icons/react';
+import { Check, Copy, Translate, UserPlus } from '@phosphor-icons/react';
 
 interface RoomWaitingScreenProps {
   roomCode: string;
@@ -51,7 +51,7 @@ export function RoomWaitingScreen({
           </p>
         </div>
 
-        <div className="mt-9 grid gap-8 border-y border-meeting-line py-8 md:grid-cols-[1fr_auto] md:items-center">
+        <div className="mt-9 border-y border-meeting-line py-8">
           <div className="min-w-0">
             <label
               htmlFor="room-link"
@@ -79,13 +79,6 @@ export function RoomWaitingScreen({
                 {hasCopied ? 'Copied' : 'Copy Link'}
               </button>
             </div>
-          </div>
-
-          <div
-            className="mx-auto grid size-28 place-items-center rounded-xl border border-meeting-line bg-white text-meeting-accent md:mx-0"
-            aria-label="QR code placeholder"
-          >
-            <QrCode aria-hidden="true" size={72} weight="thin" />
           </div>
         </div>
 
