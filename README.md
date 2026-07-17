@@ -1,157 +1,63 @@
-# VietBridge — Real-Time VI↔EN Meeting Translator
+# VietBridge Meeting Translator
 
-> Trợ lý phiên dịch thời gian thực cho họp trực tiếp giữa đoàn Việt Nam và Singapore.
-> Prototype 2 ngày cho AI Hackathon — chạy **100% offline/on-premise** bằng open-source models.
+VietBridge is a browser-based PWA scaffold for real-time Vietnamese-English business meeting translation. It is organized for a 2-day hackathon while keeping the codebase maintainable, testable, and ready for future language pairs.
 
----
+## Stack
 
-## 🎯 Bài toán
+- React 18, TypeScript, Vite
+- TailwindCSS for a readable meeting-room UI
+- Zustand for application state
+- Socket.IO client for streaming ASR and translation events
+- Web Audio API and MediaRecorder API wrappers for capture
+- VAD adapter boundary for turn-taking detection
+- Vitest and React Testing Library for tests
 
-Cuộc họp business VN↔SG cần dịch hai chiều Việt–Anh với độ trễ gần bằng 0, không gián đoạn hội thoại, và bảo mật nội dung nhạy cảm (không đưa audio lên cloud). Hệ thống đặt giữa bàn họp, tự nghe – tự nhận diện ngôn ngữ – tự dịch, **không ai phải bấm nút**.
+## Architecture Layers
 
-## ✨ Tính năng chính
+`src/domain` contains pure business concepts and use-cases. It does not import React, browser APIs, Socket.IO, or Zustand.
 
-- **Zero-touch:** VAD + language ID tự động phát hiện lượt nói và chiều dịch (VI→EN / EN→VI)
-- **Phụ đề sống:** partial text hiện ngay khi đang nói, bản dịch stream token-by-token
-- **Context-aware translation:** dịch theo ngữ cảnh 3–5 lượt hội thoại + glossary thuật ngữ business
-- **TTS hai chiều:** giọng đọc tự nhiên (Piper), có thể tắt để chạy text-only
-- **Chống ồn:** denoise trước ASR, hoạt động trong môi trường họp thực tế
-- **100% offline:** toàn bộ model chạy local — demo "rút WiFi" vẫn chạy
-- **Extensible:** thêm ngôn ngữ mới chỉ bằng sửa file config
-- **Manual mode fallback:** nút gạt push-to-talk khi môi trường quá ồn
+`src/application` coordinates domain use-cases, maps infrastructure DTOs into domain entities, and exposes state stores consumed by the UI.
 
-## 🏗️ Kiến trúc
+`src/infrastructure` implements browser and network adapters such as WebSocket streaming, audio capture, VAD, speech synthesis, and environment config.
 
-```
-Mic (browser) ──WebSocket──▶ Backend (FastAPI)
-   │
-   ▼
-[Denoise] ─▶ [Silero VAD] ─┬─ đang nói ──▶ [ASR partial] ─▶ UI (phụ đề mờ)
-                           └─ hết lượt ──▶ [ASR final] ─▶ [Language ID]
-                                                │
-                                ┌───────────────┴───────────────┐
-                                ▼                               ▼
-                          VI detected                     EN detected
-                                │                               │
-                      [MT vi→en + context]           [MT en→vi + context]
-                                │                               │
-                                ▼                               ▼
-                     UI EN view + TTS EN              UI VN view + TTS VI
-```
+`src/presentation` contains React components, views, and hooks. Views compose application services and store state into screen-level experiences.
 
-## 🧰 Tech Stack
+`src/shared` contains constants, shared types, and small utilities used across layers.
 
-| Tầng | Công nghệ | Ghi chú |
-|------|-----------|---------|
-| VAD | Silero VAD | Phát hiện start/end lượt nói, endpoint ~500–800ms im lặng |
-| Denoise | RNNoise / DeepFilterNet | Bật/tắt được |
-| ASR | faster-whisper (`medium`, int8) / PhoWhisper | 16kHz mono PCM, partial + final |
-| Language ID | Whisper built-in | Detect trên 1–2s đầu lượt nói |
-| MT | VinAI Translate (baseline) / Qwen2.5-7B local | Context 3–5 lượt + glossary inject |
-| TTS | Piper (VI & EN) | Queue phát, ngắt khi có speech mới |
-| Backend | Python + FastAPI + WebSocket | Orchestration + latency metrics |
-| Frontend | Web app (2 view VN/EN) | Phụ đề partial→final, QR join qua LAN |
+## Data Flow
 
-## 📁 Cấu trúc repo (đề xuất)
+1. `MeetingRoomView` renders meeting controls and transcript state from `useMeetingStore`.
+2. `useAudioCapture` starts the infrastructure audio repository.
+3. Audio chunks are sent through the `IAudioStreamRepository` port into application services.
+4. `TranscriptStreamService` streams audio to `ITranslationSocketRepository`.
+5. `SocketTranslationRepository` emits `audio-chunk` and listens for `transcript-partial`, `transcript-final`, and `translation-result`.
+6. Incoming DTOs are mapped into domain-friendly transcript segments.
+7. Zustand stores publish updates to the React UI.
 
-```
-bridgetalk/
-├── README.md
-├── requirements.txt
-├── config.yaml              # languages, models, đường dẫn glossary
-├── glossary.txt             # thuật ngữ business nạp trước cuộc họp
-├── backend/
-│   ├── main.py              # FastAPI + WebSocket orchestration
-│   ├── asr_service.py       # ASR: audio clean -> text + language
-│   ├── vad_service.py       # Silero VAD + denoise + chunking
-│   ├── mt_service.py        # Dịch VI<->EN, context + glossary
-│   ├── tts_service.py       # Piper TTS + audio queue
-│   └── metrics.py           # Đo latency end-to-end từng tầng
-├── frontend/
-│   └── index.html           # UI 2 view, mic capture, WebSocket client
-├── models/                  # Model weights tải về local (gitignore)
-└── tests/
-    ├── audio_samples/       # ~10 câu business VI/EN làm test set cố định
-    └── test_pipeline.py
-```
+## Adding A New Language Pair
 
-## 🚀 Cài đặt & chạy
+1. Add the language metadata to `src/shared/constants/languages.ts`.
+2. Update `VITE_SUPPORTED_LANGUAGES` in the deployed environment.
+3. Confirm the backend supports ASR, MT, and optional TTS for the new pair.
+4. Extend translation direction validation in the domain layer if the pair needs custom business rules.
+5. Add focused tests for mapping, store behavior, and UI labels.
 
-### Yêu cầu
-- Python 3.10+
-- GPU NVIDIA (khuyến nghị) hoặc CPU (dùng int8, model `small`/`medium`)
-- ~8GB RAM trở lên
+The frontend should not need structural changes for a new pair because language support is treated as configuration plus domain validation.
 
-### Bước 1 — Cài dependencies
+## Getting Started
+
 ```bash
-git clone <repo-url> && cd bridgetalk
-pip install -r requirements.txt
-# requirements chính: faster-whisper, silero-vad, fastapi, uvicorn,
-#                     websockets, numpy, piper-tts, transformers
+npm install
+npm run dev
 ```
 
-### Bước 2 — Tải model về local (làm 1 lần, cần internet)
+Copy `.env.example` to `.env.local` and point `VITE_BACKEND_WS_URL` at the streaming backend when it is available.
+
+## Useful Scripts
+
 ```bash
-python scripts/download_models.py
-# Sau bước này hệ thống chạy hoàn toàn offline
+npm run build
+npm run test
+npm run lint
+npm run format
 ```
-
-### Bước 3 — Cấu hình
-```yaml
-# config.yaml
-languages: [vi, en]        # thêm ngôn ngữ mới tại đây
-asr_model: medium
-mt_backend: vinai          # vinai | llm
-glossary: glossary.txt
-tts_enabled: true
-```
-
-### Bước 4 — Chạy
-```bash
-uvicorn backend.main:app --host 0.0.0.0 --port 8000
-# Mở http://<ip-laptop>:8000 trên trình duyệt
-# Thiết bị thứ 2 (tablet/điện thoại) join cùng LAN qua QR trên màn hình
-```
-
-### Test nhanh module ASR riêng
-```bash
-python backend/asr_service.py tests/audio_samples/test_vi.wav
-```
-
-## 📊 Mục tiêu hiệu năng (demo day)
-
-| Metric | Target |
-|--------|--------|
-| Partial text xuất hiện | ≤ 500ms sau khi bắt đầu nói |
-| End-of-speech → bản dịch final | ≤ 2s |
-| Hội thoại free-flow liên tục | ≥ 15 phút không crash |
-| Dịch đúng thuật ngữ glossary | ≥ 90% |
-| Internet ở runtime | 0 request |
-
-## 👥 Team (6 người)
-
-| Người | Vai trò | Own |
-|-------|---------|-----|
-| P1 | Speech pipeline | Mic, VAD, denoise, chunking |
-| P2 | Translation | MT models, context, glossary, config đa ngôn ngữ |
-| P3 | ASR | Audio clean → text + language ID, partial/final |
-| P4 | Backend/Integration | WebSocket, orchestration, latency metrics |
-| P5 | Frontend/UX | UI 2 view, phụ đề sống, QR join |
-| P6 | QA/Demo/Deploy | Test noise, TTS, kịch bản demo, pitch |
-
-## 🗺️ Roadmap 2 ngày
-
-- **Ngày 1 sáng:** pipeline E2E "xấu nhưng chạy" (thu âm → text dịch hiện màn hình)
-- **Ngày 1 chiều:** streaming VAD tự động, partial results, TTS, đo latency
-- **Ngày 2 sáng:** denoise + test phòng ồn, manual mode fallback, polish UI — **freeze 12h**
-- **Ngày 2 chiều:** tập demo ≥5 lần, pitch deck, video backup
-
-## 📝 Ghi chú
-
-- **Multi-speaker (>2 người):** hỗ trợ nhiều người tham dự nói lần lượt; speaker diarization (pyannote/WhisperX) là stretch goal — xem US-010 trong PRD. Overlap speech ngoài phạm vi prototype.
-- **Bonus points nhắm tới:** on-premise open models ✅ · edge-capable (CPU int8) ✅ · noise robustness ✅ · turn-taking tự động ✅ · extensible sang ngôn ngữ low-resource (Thái/Khmer qua config) ✅
-- Tài liệu chi tiết: xem `docs/brief-prd-workflow.md`
-
-## 📄 License
-
-Prototype hackathon — mã nguồn nội bộ team, models theo license gốc của từng bên (Whisper/MIT, VinAI/GPL, Piper/MIT, Silero/MIT).
