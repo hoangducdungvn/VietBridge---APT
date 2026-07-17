@@ -15,12 +15,14 @@ Bạn đang xây Backend NestJS cho VietBridge.
    - Phase hiện tại.
 4. Trong các lượt làm việc tiếp theo, ưu tiên đọc:
    - `AGENT_WORKING_CONTEXT.md`
+   - `API_SPECIFICATION.md` khi công việc liên quan đến REST API.
    - File đặc tả liên quan trực tiếp đến phase đang triển khai.
 5. Chỉ đọc lại toàn bộ tài liệu khi phát hiện mâu thuẫn hoặc thiếu thông tin.
 
 ## Quy tắc bắt buộc
 
 - Không tự ý thay đổi event contract.
+- Mỗi lần thêm, sửa, đổi tên hoặc xóa API phải cập nhật `Agent_Skill/API_SPECIFICATION.md` trong cùng thay đổi code.
 - Không thêm database, Redis, Kafka, WebRTC hoặc microservice.
 - Mỗi phase phải:
   - Nêu file sẽ tạo hoặc sửa.
