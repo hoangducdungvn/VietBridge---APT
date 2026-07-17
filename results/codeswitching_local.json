@@ -1,0 +1,104 @@
+{
+  "timestamp": "2026-07-17T21:23:44.040232",
+  "backends": [
+    "local"
+  ],
+  "audio_source": "tests/sample_en_human.wav",
+  "cases": [
+    {
+      "case_id": "cs_06",
+      "label": "EN+VI_phrase",
+      "expected_text": "We propose a joint venture, similar to the previous model from last meetings.",
+      "language_hint": "en",
+      "note": "Pure EN — baseline for EN accuracy",
+      "audio_duration_s": 4.55,
+      "results": {
+        "local": {
+          "backend": "local",
+          "text": "And so, my fellow Americans, ask not!",
+          "language_detected": "en",
+          "latency_ms": 3891.5,
+          "network_ms": null,
+          "low_confidence": false,
+          "error": null
+        }
+      }
+    },
+    {
+      "case_id": "cs_07",
+      "label": "EN+VI_name",
+      "expected_text": "I discussed this with Anh Dung yesterday, and he agreed to the terms.",
+      "language_hint": "en",
+      "note": "Vietnamese honorific 'Anh' before a name in EN sentence",
+      "audio_duration_s": 4.55,
+      "results": {
+        "local": {
+          "backend": "local",
+          "text": "And so, my fellow Americans, ask not!",
+          "language_detected": "en",
+          "latency_ms": 3911.8,
+          "network_ms": null,
+          "low_confidence": false,
+          "error": null
+        }
+      }
+    },
+    {
+      "case_id": "cs_08",
+      "label": "EN+VI_city",
+      "expected_text": "The pilot will run in Ho Chi Minh City, then expand to Ha Noi and Da Nang.",
+      "language_hint": "en",
+      "note": "Vietnamese place names inside an English sentence",
+      "audio_duration_s": 5.9499375,
+      "results": {
+        "local": {
+          "backend": "local",
+          "text": "And so, my fellow Americans, ask not what your...",
+          "language_detected": "en",
+          "latency_ms": 3959.2,
+          "network_ms": null,
+          "low_confidence": false,
+          "error": null
+        }
+      }
+    },
+    {
+      "case_id": "cs_09",
+      "label": "PURE_VI",
+      "expected_text": "Chung toi muon bat dau hop tac vao thang chin nam nay.",
+      "language_hint": "vi",
+      "note": "Baseline: pure Vietnamese — both engines should do well",
+      "audio_duration_s": 4.1999375,
+      "results": {
+        "local": {
+          "backend": "local",
+          "text": "And so, my fellow Americans, ask not-",
+          "language_detected": "en",
+          "latency_ms": 4011.3,
+          "network_ms": null,
+          "low_confidence": false,
+          "error": null
+        }
+      }
+    },
+    {
+      "case_id": "cs_10",
+      "label": "PURE_EN",
+      "expected_text": "We would like to begin the collaboration in September this year.",
+      "language_hint": "en",
+      "note": "Baseline: pure English — FPT will likely FAIL, Local Whisper should PASS",
+      "audio_duration_s": 3.8499375,
+      "results": {
+        "local": {
+          "backend": "local",
+          "text": "And so, my fellow Americans, ask...",
+          "language_detected": "en",
+          "latency_ms": 3907.1,
+          "network_ms": null,
+          "low_confidence": false,
+          "error": null
+        }
+      }
+    }
+  ]
+}

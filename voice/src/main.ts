@@ -30,6 +30,8 @@ const mSeq         = $<HTMLDivElement>('m-seq');
 const mAcked       = $<HTMLDivElement>('m-acked');
 const mBuffer      = $<HTMLDivElement>('m-buffer');
 const eventLog     = $<HTMLDivElement>('event-log');
+const transcriptDisplay = $<HTMLDivElement>('transcript-display');
+const sttBadge          = $<HTMLSpanElement>('stt-badge');
 
 // ---------------------------------------------------------------------------
 // State
@@ -183,6 +185,44 @@ async function startPipeline(): Promise<void> {
     onError: (code, message) => {
       appendLog('err', `${code}: ${message}`);
     },
+
+    onSttResult: (res) => {
+      if (transcriptDisplay.querySelector('span[style*="italic"]')) {
+        transcriptDisplay.innerHTML = '';
+      }
+
+      if (res.type === 'partial') {
+        sttBadge.textContent = `⚡ Partial (${res.backend} | ${res.latencyMs}ms)`;
+        sttBadge.style.background = 'var(--green-glow)';
+        sttBadge.style.color = 'var(--green)';
+
+        let partialEl = document.getElementById('live-partial');
+        if (!partialEl) {
+          partialEl = document.createElement('div');
+          partialEl.id = 'live-partial';
+          partialEl.style.cssText = 'padding: 10px; border: 1px dashed var(--blue); border-radius: 6px; color: var(--blue); margin-bottom: 8px; font-style: italic;';
+          transcriptDisplay.appendChild(partialEl);
+        }
+        partialEl.innerHTML = `⏳ <b>${escapeHtml(res.text)}</b> <span style="font-size: 0.75rem; color: var(--text-muted);">[${res.backend}]</span>`;
+        transcriptDisplay.scrollTop = transcriptDisplay.scrollHeight;
+      } else if (res.type === 'final') {
+        sttBadge.textContent = `✨ Finalized (${res.backend} | ${res.latencyMs}ms)`;
+        sttBadge.style.background = 'var(--accent-glow)';
+        sttBadge.style.color = 'var(--accent)';
+
+        const partialEl = document.getElementById('live-partial');
+        if (partialEl) partialEl.remove();
+
+        const finalEl = document.createElement('div');
+        finalEl.style.cssText = 'margin-bottom: 12px; padding: 12px; background: var(--surface); border-left: 4px solid var(--green); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);';
+        finalEl.innerHTML = `
+          <div style="font-size: 1.15rem; font-weight: 600; color: #fff; margin-bottom: 4px;">${escapeHtml(res.text)}</div>
+          <div style="font-size: 0.75rem; color: var(--text-muted);">🏆 Finalized via <b>${res.backend}</b> (${res.language.toUpperCase()}) • Latency: <b>${res.latencyMs}ms</b></div>
+        `;
+        transcriptDisplay.appendChild(finalEl);
+        transcriptDisplay.scrollTop = transcriptDisplay.scrollHeight;
+      }
+    },
   };
 
   pipeline = new VoicePipeline(
@@ -223,6 +263,12 @@ async function stopPipeline(): Promise<void> {
   levelDb.textContent = '— dBFS';
   levelBar.style.width = '0%';
   snrVal.textContent = '—';
+
+  sttBadge.textContent = 'Stopped';
+  sttBadge.style.background = 'var(--surface-2)';
+  sttBadge.style.color = 'var(--text-muted)';
+  const partialEl = document.getElementById('live-partial');
+  if (partialEl) partialEl.remove();
 }
 
 function updateMetrics(): void {

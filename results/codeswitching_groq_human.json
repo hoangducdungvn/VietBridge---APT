@@ -1,0 +1,104 @@
+{
+  "timestamp": "2026-07-17T21:40:06.329616",
+  "backends": [
+    "groq"
+  ],
+  "audio_source": "tests/sample_en_human.wav",
+  "cases": [
+    {
+      "case_id": "cs_01",
+      "label": "VI+EN_term",
+      "expected_text": "Chung toi de xuat partnership model voi dieu kien fifty-fifty revenue sharing.",
+      "language_hint": "vi",
+      "note": "VI sentence with EN business terms — most common in meetings",
+      "audio_duration_s": 4.1999375,
+      "results": {
+        "groq": {
+          "backend": "groq",
+          "text": "Và vậy, mấy người Mỹ, đừng quên đề tập.",
+          "language_detected": "Vietnamese",
+          "latency_ms": 1061.8,
+          "network_ms": 1060.6,
+          "low_confidence": true,
+          "error": null
+        }
+      }
+    },
+    {
+      "case_id": "cs_06",
+      "label": "EN+VI_phrase",
+      "expected_text": "We propose a joint venture, similar to the previous model from last meetings.",
+      "language_hint": "en",
+      "note": "Pure EN — baseline for EN accuracy",
+      "audio_duration_s": 4.55,
+      "results": {
+        "groq": {
+          "backend": "groq",
+          "text": "And so, my fellow Americans, ask not",
+          "language_detected": "English",
+          "latency_ms": 923.7,
+          "network_ms": 922.9,
+          "low_confidence": false,
+          "error": null
+        }
+      }
+    },
+    {
+      "case_id": "cs_09",
+      "label": "PURE_VI",
+      "expected_text": "Chung toi muon bat dau hop tac vao thang chin nam nay.",
+      "language_hint": "vi",
+      "note": "Baseline: pure Vietnamese — both engines should do well",
+      "audio_duration_s": 4.1999375,
+      "results": {
+        "groq": {
+          "backend": "groq",
+          "text": "Và vậy, mấy người Mỹ, đừng quên đề tập.",
+          "language_detected": "Vietnamese",
+          "latency_ms": 1039.4,
+          "network_ms": 1038.7,
+          "low_confidence": true,
+          "error": null
+        }
+      }
+    },
+    {
+      "case_id": "cs_10",
+      "label": "PURE_EN",
+      "expected_text": "We would like to begin the collaboration in September this year.",
+      "language_hint": "en",
+      "note": "Baseline: pure English — FPT will likely FAIL, Local Whisper should PASS",
+      "audio_duration_s": 3.8499375,
+      "results": {
+        "groq": {
+          "backend": "groq",
+          "text": "And so my fellow Americans, ask",
+          "language_detected": "English",
+          "latency_ms": 917.0,
+          "network_ms": 915.8,
+          "low_confidence": false,
+          "error": null
+        }
+      }
+    },
+    {
+      "case_id": "cs_11",
+      "label": "VI+filler+EN",
+      "expected_text": "Um, basically chung toi can the deliverables by end of Q3.",
+      "language_hint": "vi",
+      "note": "Starts with filler 'Um' then heavy EN — how does model handle it?",
+      "audio_duration_s": 3.8499375,
+      "results": {
+        "groq": {
+          "backend": "groq",
+          "text": "Và vậy, các bạn thưa quý vị, tôi chào tất cả các bạn,",
+          "language_detected": "Vietnamese",
+          "latency_ms": 1027.1,
+          "network_ms": 1026.6,
+          "low_confidence": true,
+          "error": null
+        }
+      }
+    }
+  ]
+}

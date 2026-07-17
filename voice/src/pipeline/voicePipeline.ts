@@ -18,6 +18,7 @@ import {
   type VoiceStreamClientConfig,
   type VoiceStreamClientEvents,
   type ConnectionState,
+  type SttResultEvent,
 } from '../protocol/wsClient';
 import type { SpeakerState, LanguageHint } from '../protocol/types';
 
@@ -59,6 +60,7 @@ export interface VoicePipelineEvents {
   onLog?(message: string): void;
   onError?(code: string, message: string): void;
   onAcked?(sequence: number): void;
+  onSttResult?(result: SttResultEvent): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -179,6 +181,9 @@ export class VoicePipeline {
       onBackpressure: (evt) => {
         this.log(`Server backpressure: ${evt.message}`);
         this.events.onError?.('SERVER_BACKPRESSURE', evt.message);
+      },
+      onSttResult: (res) => {
+        this.events.onSttResult?.(res);
       },
     };
 

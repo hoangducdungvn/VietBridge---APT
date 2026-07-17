@@ -1,0 +1,104 @@
+{
+  "timestamp": "2026-07-17T21:39:50.230131",
+  "backends": [
+    "groq"
+  ],
+  "audio_source": "tests/sample_en.wav",
+  "cases": [
+    {
+      "case_id": "cs_01",
+      "label": "VI+EN_term",
+      "expected_text": "Chung toi de xuat partnership model voi dieu kien fifty-fifty revenue sharing.",
+      "language_hint": "vi",
+      "note": "VI sentence with EN business terms — most common in meetings",
+      "audio_duration_s": 4.1999375,
+      "results": {
+        "groq": {
+          "backend": "groq",
+          "text": "Hello everyone, welcome to the Vietbridge demo. Today",
+          "language_detected": "Vietnamese",
+          "latency_ms": 1068.5,
+          "network_ms": 1067.3,
+          "low_confidence": false,
+          "error": null
+        }
+      }
+    },
+    {
+      "case_id": "cs_06",
+      "label": "EN+VI_phrase",
+      "expected_text": "We propose a joint venture, similar to the previous model from last meetings.",
+      "language_hint": "en",
+      "note": "Pure EN — baseline for EN accuracy",
+      "audio_duration_s": 4.55,
+      "results": {
+        "groq": {
+          "backend": "groq",
+          "text": "Hello everyone, welcome to the Vietbridge demo. Today we will",
+          "language_detected": "English",
+          "latency_ms": 1087.0,
+          "network_ms": 1086.0,
+          "low_confidence": false,
+          "error": null
+        }
+      }
+    },
+    {
+      "case_id": "cs_09",
+      "label": "PURE_VI",
+      "expected_text": "Chung toi muon bat dau hop tac vao thang chin nam nay.",
+      "language_hint": "vi",
+      "note": "Baseline: pure Vietnamese — both engines should do well",
+      "audio_duration_s": 4.1999375,
+      "results": {
+        "groq": {
+          "backend": "groq",
+          "text": "Hello everyone, welcome to the Vietbridge demo. Today",
+          "language_detected": "Vietnamese",
+          "latency_ms": 952.7,
+          "network_ms": 952.1,
+          "low_confidence": false,
+          "error": null
+        }
+      }
+    },
+    {
+      "case_id": "cs_10",
+      "label": "PURE_EN",
+      "expected_text": "We would like to begin the collaboration in September this year.",
+      "language_hint": "en",
+      "note": "Baseline: pure English — FPT will likely FAIL, Local Whisper should PASS",
+      "audio_duration_s": 3.8499375,
+      "results": {
+        "groq": {
+          "backend": "groq",
+          "text": "Hello everyone, welcome to the Vietbridge demo.",
+          "language_detected": "English",
+          "latency_ms": 1027.0,
+          "network_ms": 1026.5,
+          "low_confidence": false,
+          "error": null
+        }
+      }
+    },
+    {
+      "case_id": "cs_11",
+      "label": "VI+filler+EN",
+      "expected_text": "Um, basically chung toi can the deliverables by end of Q3.",
+      "language_hint": "vi",
+      "note": "Starts with filler 'Um' then heavy EN — how does model handle it?",
+      "audio_duration_s": 3.8499375,
+      "results": {
+        "groq": {
+          "backend": "groq",
+          "text": "Hello everyone, welcome to the Vietbridge demo.",
+          "language_detected": "Vietnamese",
+          "latency_ms": 1024.5,
+          "network_ms": 1023.8,
+          "low_confidence": false,
+          "error": null
+        }
+      }
+    }
+  ]
+}

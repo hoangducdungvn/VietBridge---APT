@@ -51,6 +51,13 @@ function uuid(): string {
 // ---------------------------------------------------------------------------
 // Per-connection session state
 // ---------------------------------------------------------------------------
+interface ActiveUtterance {
+  id: string;
+  pcmChunks: Int16Array[];
+  langHint: string;
+  lastPartialMs: number;
+}
+
 interface SessionState {
   sessionId: string;
   streamId: string;
@@ -62,6 +69,7 @@ interface SessionState {
   utteranceCount: number;
   serverReceivedTimestamps: number[];    // D7 §10.4 overlap detection
   connectedAt: number;
+  activeUtterance: ActiveUtterance | null;
 }
 
 function createSessionState(): SessionState {
@@ -76,6 +84,7 @@ function createSessionState(): SessionState {
     utteranceCount: 0,
     serverReceivedTimestamps: [],
     connectedAt: Date.now(),
+    activeUtterance: null,
   };
 }
 
@@ -217,6 +226,13 @@ function handleTextFrame(ws: WebSocket, state: SessionState, raw: string): void 
       const speaker = evt.speaker_id as string | null;
       const vad = evt.vad as Record<string, unknown> | undefined;
 
+      state.activeUtterance = {
+        id: uttId,
+        pcmChunks: [],
+        langHint: (evt.language_hint as string) || 'auto',
+        lastPartialMs: Date.now(),
+      };
+
       log(
         '[EVENT]',
         `${C.magenta}${C.bold}`,
@@ -247,6 +263,11 @@ function handleTextFrame(ws: WebSocket, state: SessionState, raw: string): void 
           `clipping=${quality?.clipping_ratio ?? '?'} ` +
           `dropped=${quality?.dropped_chunks ?? 0}`,
       );
+
+      if (state.activeUtterance && state.activeUtterance.id === uttId) {
+        callSttService(ws, state, state.activeUtterance, true);
+        state.activeUtterance = null;
+      }
 
       // D3: ACK once after utterance.end, not periodic
       send(ws, {
@@ -359,6 +380,16 @@ function handleBinaryFrame(_ws: WebSocket, state: SessionState, buffer: ArrayBuf
         `capture=${metadata.capture_start_ms}ms)`,
     );
   }
+
+  // Periodic re-decode (~1s per §20.3 / D16)
+  if (state.activeUtterance && state.activeUtterance.id === metadata.utterance_id) {
+    state.activeUtterance.pcmChunks.push(_payload);
+    const now = Date.now();
+    if (now - state.activeUtterance.lastPartialMs >= 1000) {
+      state.activeUtterance.lastPartialMs = now;
+      callSttService(_ws, state, state.activeUtterance, false);
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -369,5 +400,71 @@ function send(ws: WebSocket, payload: Record<string, unknown>): void {
     const json = JSON.stringify(payload);
     ws.send(json);
     log('[REPLY]', `${C.dim}${C.green}`, '', `→ ${payload.type as string}`);
+  }
+}
+
+async function callSttService(
+  ws: WebSocket,
+  state: SessionState,
+  utt: ActiveUtterance,
+  isFinal: boolean,
+): Promise<void> {
+  const sttUrl = process.env.STT_URL || 'http://localhost:8001/v1/transcribe';
+  try {
+    const totalBytes = utt.pcmChunks.reduce((acc, b) => acc + b.byteLength, 0);
+    if (totalBytes === 0) return;
+
+    const combined = new Uint8Array(totalBytes);
+    let offset = 0;
+    for (const chunk of utt.pcmChunks) {
+      const u8 = new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength);
+      combined.set(u8, offset);
+      offset += u8.byteLength;
+    }
+
+    const form = new FormData();
+    form.append('file', new Blob([combined]), 'audio.raw');
+    form.append('utterance_id', utt.id);
+    form.append('language_hint', utt.langHint);
+    form.append('is_final', isFinal ? 'true' : 'false');
+
+    const resp = await fetch(sttUrl, { method: 'POST', body: form });
+    if (!resp.ok) {
+      const errText = await resp.text();
+      log('[STT ERROR]', C.red, state.sourceId, `HTTP ${resp.status}: ${errText}`);
+      return;
+    }
+
+    const res = (await resp.json()) as Record<string, unknown>;
+    const tag = isFinal ? 'FINAL' : 'PARTIAL';
+    const color = isFinal ? `${C.bgGreen}${C.bold}${C.white}` : `${C.green}${C.bold}`;
+    const latency = res.asr_latency_ms ?? '?';
+    const backend = res.backend ?? '?';
+    const text = (res.text as string) ?? '';
+
+    log(
+      `[STT ${tag}]`,
+      color,
+      state.sourceId,
+      `[backend=${backend} | ${latency}ms] utt=${C.yellow}${utt.id}${C.reset} "${text}"`,
+    );
+
+    send(ws, {
+      protocol_version: PROTOCOL_VERSION,
+      type: isFinal ? 'stt.final' : 'stt.partial',
+      session_id: state.sessionId,
+      stream_id: state.streamId,
+      source_id: state.sourceId,
+      utterance_id: utt.id,
+      text,
+      language: res.language ?? utt.langHint,
+      backend,
+      asr_latency_ms: latency,
+      low_confidence: res.low_confidence ?? false,
+      server_time: ts(),
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    log('[STT ERROR]', C.red, state.sourceId, `Failed calling STT gateway: ${msg}`);
   }
 }

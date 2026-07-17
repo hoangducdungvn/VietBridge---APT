@@ -43,12 +43,22 @@ export interface VoiceStreamClientConfig {
 
 export type ConnectionState = 'idle' | 'connecting' | 'connected' | 'throttled' | 'reconnecting' | 'closed';
 
+export interface SttResultEvent {
+  type: 'partial' | 'final';
+  text: string;
+  language: string;
+  backend: string;
+  latencyMs: number;
+  utteranceId: string;
+}
+
 export interface VoiceStreamClientEvents {
   onStateChange?(state: ConnectionState): void;
   onLog?(message: string): void;
   onServerAck?(ack: StreamAckEvent): void;
   onThrottle?(evt: StreamThrottleEvent): void;
   onBackpressure?(evt: ErrorEvent): void;
+  onSttResult?(result: SttResultEvent): void;
 }
 
 type EnvelopeKeys = 'protocol_version' | 'type' | 'event_id' | 'session_id' | 'stream_id' | 'source_id' | 'sent_at';
@@ -363,6 +373,27 @@ export class VoiceStreamClient {
           this.ws?.close();
           setTimeout(() => this.connect(true).catch(() => undefined), retryAfter);
         }
+        break;
+      }
+
+      case 'stt.partial':
+      case 'stt.final': {
+        const stt = message as unknown as {
+          type: string;
+          text: string;
+          language: string;
+          backend: string;
+          asr_latency_ms: number;
+          utterance_id: string;
+        };
+        this.events.onSttResult?.({
+          type: stt.type === 'stt.final' ? 'final' : 'partial',
+          text: stt.text || '',
+          language: stt.language || 'auto',
+          backend: stt.backend || 'auto',
+          latencyMs: stt.asr_latency_ms || 0,
+          utteranceId: stt.utterance_id || '',
+        });
         break;
       }
 
