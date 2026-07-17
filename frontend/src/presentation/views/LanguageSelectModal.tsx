@@ -1,23 +1,31 @@
-import { Check, Lock } from '@phosphor-icons/react';
-import type { LanguageCode } from '@shared/types';
+import { Check, Lock, X } from '@phosphor-icons/react';
+import type { RoomLanguage } from '@domain/entities/Room';
 
 interface LanguageSelectModalProps {
-  otherParticipantLanguage: LanguageCode;
-  selectedLanguage: LanguageCode | null;
-  onSelectLanguage: (language: LanguageCode) => void;
+  roomName: string;
+  otherParticipantLanguage: RoomLanguage | null;
+  selectedLanguage: RoomLanguage | null;
+  onSelectLanguage: (language: RoomLanguage) => void;
+  onClose: () => void;
 }
 
-const languageOptions: Array<{ code: LanguageCode; flag: string; label: string; detail: string }> =
-  [
-    { code: 'en', flag: '🇬🇧', label: 'English', detail: 'I will speak English' },
-    { code: 'vi', flag: '🇻🇳', label: 'Tiếng Việt', detail: 'Tôi sẽ nói tiếng Việt' }
-  ];
+const languageOptions: Array<{
+  code: RoomLanguage;
+  flag: string;
+  label: string;
+  detail: string;
+}> = [
+  { code: 'en', flag: '🇬🇧', label: 'English', detail: 'I will speak English' },
+  { code: 'vi', flag: '🇻🇳', label: 'Tiếng Việt', detail: 'Tôi sẽ nói tiếng Việt' }
+];
 
 // Participant-specific language choice that enforces one speaker per language.
 export function LanguageSelectModal({
+  roomName,
   otherParticipantLanguage,
   selectedLanguage,
-  onSelectLanguage
+  onSelectLanguage,
+  onClose
 }: LanguageSelectModalProps) {
   return (
     <div
@@ -28,14 +36,31 @@ export function LanguageSelectModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="language-title"
-        className="w-full max-w-2xl animate-modal-enter rounded-xl bg-white p-6 shadow-panel sm:p-9"
+        aria-describedby="language-description"
+        className="relative w-full max-w-2xl animate-modal-enter rounded-xl bg-white p-6 shadow-panel sm:p-9"
       >
-        <div className="text-center">
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close language selection"
+          title="Close"
+          className="absolute right-4 top-4 grid size-10 place-items-center rounded-xl text-meeting-muted transition hover:bg-meeting-canvas hover:text-meeting-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-meeting-accent active:scale-[0.98]"
+        >
+          <X aria-hidden="true" size={20} />
+        </button>
+
+        <div className="px-8 text-center">
+          <p className="mb-3 text-sm font-semibold text-meeting-accent">{roomName}</p>
           <h2 id="language-title" className="text-2xl font-semibold text-meeting-ink sm:text-3xl">
             Choose your language
           </h2>
-          <p className="mx-auto mt-3 max-w-md leading-7 text-meeting-muted">
-            Each participant speaks one different language so both sides stay clear.
+          <p
+            id="language-description"
+            className="mx-auto mt-3 max-w-md leading-7 text-meeting-muted"
+          >
+            {otherParticipantLanguage
+              ? 'Choose the remaining language so both sides stay clear.'
+              : 'Select the language you will speak in this room.'}
           </p>
         </div>
 
@@ -49,6 +74,7 @@ export function LanguageSelectModal({
                 key={language.code}
                 type="button"
                 disabled={isUnavailable || selectedLanguage !== null}
+                aria-pressed={isSelected}
                 title={isUnavailable ? 'Already selected by the other participant' : undefined}
                 onClick={() => onSelectLanguage(language.code)}
                 className={`relative min-h-40 rounded-xl border p-6 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-meeting-accent active:scale-[0.98] ${
@@ -82,8 +108,11 @@ export function LanguageSelectModal({
         </div>
 
         <p className="mt-6 text-center text-sm text-meeting-muted">
-          The other participant selected{' '}
-          {otherParticipantLanguage === 'en' ? 'English' : 'Tiếng Việt'}.
+          {otherParticipantLanguage
+            ? `The other participant selected ${
+                otherParticipantLanguage === 'en' ? 'English' : 'Tiếng Việt'
+              }.`
+            : 'You are the first participant in this room.'}
         </p>
       </section>
     </div>

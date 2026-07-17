@@ -10,7 +10,7 @@ import {
 import type { LanguageCode } from '@shared/types';
 
 interface MeetingRoomScreenProps {
-  roomCode: string;
+  roomName: string;
   localLanguage: LanguageCode;
   otherLanguage: LanguageCode;
   onEndMeeting: () => void;
@@ -193,7 +193,7 @@ function LanguagePane({
 
 // Demonstration meeting workspace with local mocked streaming and speaker turns.
 export function MeetingRoomScreen({
-  roomCode,
+  roomName,
   localLanguage,
   otherLanguage,
   onEndMeeting
@@ -282,7 +282,7 @@ export function MeetingRoomScreen({
             <Translate aria-hidden="true" size={19} weight="bold" />
           </span>
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-meeting-ink">Room #{roomCode}</p>
+            <p className="truncate text-sm font-semibold text-meeting-ink">{roomName}</p>
             <p className="text-xs text-meeting-muted">Vietnamese-English meeting</p>
           </div>
         </div>
