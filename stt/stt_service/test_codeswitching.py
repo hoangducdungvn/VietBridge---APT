@@ -4,7 +4,7 @@ from __future__ import annotations
 """
 Code-switching test: FPT Cloud vs Local Whisper on VI<->EN mixed sentences.
 
-Usage:
+Usage (run from the stt/ folder):
   pip install gtts scipy
 
   python stt_service/test_codeswitching.py              # both backends
@@ -12,7 +12,7 @@ Usage:
   python stt_service/test_codeswitching.py --backend local
   python stt_service/test_codeswitching.py --cases cs_01 cs_10
   python stt_service/test_codeswitching.py --output results/cs_result.json
-  python stt_service/test_codeswitching.py --wav tests/sample_vi.wav
+  python stt_service/test_codeswitching.py --wav tests/sample_en.wav
 """
 
 import sys
@@ -412,7 +412,7 @@ def main() -> None:
             print("  TTS synthesis requires ffmpeg to decode MP3.")
             print("  Install: winget install ffmpeg  OR  choco install ffmpeg")
             print("  Then restart terminal and re-run.")
-            print("  Alternative: use --wav tests/sample_vi.wav\n")
+            print("  Alternative: use --wav tests/sample_en.wav (from the stt/ folder)\n")
             raise SystemExit(1)
 
     print(f"[START] Code-Switching Test -- {datetime.now().strftime('%Y-%m-%d %H:%M')}")
