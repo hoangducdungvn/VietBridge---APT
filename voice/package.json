@@ -1,0 +1,27 @@
+{
+  "name": "vietbridge-voice",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Voice capture, cleanup and streaming module for VietBridge. Implements docs/audio-streaming-contract.md v1.3.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "mock-server": "tsx watch src/mock-server/server.ts"
+  },
+  "dependencies": {
+    "onnxruntime-web": "^1.27.0",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/uuid": "^10.0.0",
+    "@types/ws": "^8.5.10",
+    "tsx": "^4.7.1",
+    "typescript": "^5.4.5",
+    "vite": "^5.2.0",
+    "ws": "^8.16.0"
+  }
+}
