@@ -1,4 +1,9 @@
 import { Module } from '@nestjs/common';
+import { ParticipantStore } from './participant.store';
+import { ParticipantsService } from './participants.service';
 
-@Module({})
+@Module({
+  exports: [ParticipantStore, ParticipantsService],
+  providers: [ParticipantStore, ParticipantsService],
+})
 export class ParticipantsModule {}
