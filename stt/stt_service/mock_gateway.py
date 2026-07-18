@@ -1,8 +1,10 @@
 """Fake ingestion gateway: test the STT service without waiting for teammates.
 
-Reads a 16 kHz mono WAV, slices it into 1s chunks, calls
+Reads a 16 kHz mono WAV, slices it into 2s chunks, calls
 transcribe(is_final=False) on the accumulated audio after each chunk
 (periodic re-decode), then transcribe(is_final=True) once at the end.
+
+Partial interval is 2s (benchmark showed FPT p95≈2.9s — 1s caused queue backlog).
 
 Usage:
     python mock_gateway.py tests/sample_vi.wav [--lang vi] [--realtime] [--use-queue]
@@ -24,7 +26,7 @@ import numpy as np
 from stt_service import config, service
 from stt_service.queue_worker import STTJob, STTQueueWorker
 
-CHUNK_S = 1.0
+CHUNK_S = 2.0  # 2s partial interval — 1s caused queue backlog (FPT p95≈2.9s, avg=1.7s)
 
 
 def print_result(r: dict) -> None:
@@ -42,7 +44,7 @@ def main() -> None:
     ap.add_argument("wav", nargs="?", help="16 kHz mono WAV file")
     ap.add_argument("--lang", default="vi", choices=["vi", "en"])
     ap.add_argument("--realtime", action="store_true",
-                    help="sleep 1s between chunks like a live stream")
+                    help="sleep 2s between chunks like a live stream")
     ap.add_argument("--use-queue", action="store_true",
                     help="route jobs through STTQueueWorker instead of calling directly")
     ap.add_argument("--synth", type=float, metavar="SECONDS",
