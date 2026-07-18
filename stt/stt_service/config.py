@@ -105,6 +105,18 @@ NORMALIZE_MAX_GAIN = 20.0       # ~26 dB cap: never boost a near-dead mic's
 # First-order IIR at 80 Hz adds ~0.5 ms CPU per 10s utterance — negligible.
 HIGHPASS_CUTOFF_HZ = 80.0
 
+# --- End Of Utterance detection (server-side advisory fallback) ---
+# The primary EOU signal is still produced by voice/ client VAD. These settings
+# let STT responses expose an extra `eou` metadata block for callers that want a
+# backend-side safety signal while keeping the old transcribe contract intact.
+EOU_ENABLED = os.environ.get("STT_EOU_ENABLED", "true").strip().lower() not in ("0", "false", "no", "off")
+EOU_FRAME_MS = int(os.environ.get("STT_EOU_FRAME_MS", "20"))
+EOU_END_SILENCE_MS = int(os.environ.get("STT_EOU_END_SILENCE_MS", "600"))
+EOU_MIN_SPEECH_MS = int(os.environ.get("STT_EOU_MIN_SPEECH_MS", "160"))
+EOU_MAX_UTTERANCE_MS = int(os.environ.get("STT_EOU_MAX_UTTERANCE_MS", "25000"))
+EOU_SPEECH_RMS = float(os.environ.get("STT_EOU_SPEECH_RMS", str(SILENCE_RMS)))
+EOU_SPEECH_PEAK = float(os.environ.get("STT_EOU_SPEECH_PEAK", str(SILENCE_PEAK)))
+
 # --- Server Gateway (P4 -> STT) ---
 STT_HOST = os.environ.get("STT_HOST", "0.0.0.0")
 STT_PORT = int(os.environ.get("STT_PORT", "8001"))

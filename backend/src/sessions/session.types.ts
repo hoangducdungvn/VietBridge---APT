@@ -5,9 +5,14 @@ import type {
 } from '../participants/participant.types';
 
 export type SessionStatus =
-  'waiting' | 'active' | 'closing' | 'closed' | 'error';
+  | 'waiting'
+  | 'active'
+  | 'closing'
+  | 'closed'
+  | 'error';
 
 export interface TranslationSession {
+  activeTurnId?: string;
   closedAt?: number;
   createdAt: number;
   glossary: Record<string, string>;

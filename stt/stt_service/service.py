@@ -10,12 +10,14 @@ from __future__ import annotations
 
 import logging
 import time
+import re
 from typing import Optional
 
 import numpy as np
 
 import os
 from stt_service import config
+from stt_service.eou import detect_eou
 from stt_service.engine import ASREngine, EngineError, create_engine
 
 logger = logging.getLogger("stt_service.service")
@@ -205,6 +207,33 @@ _HALLUCINATION_KEYWORD_PAIRS = [
 ]
 
 
+def _is_repetitive_hallucination(text: str) -> bool:
+    """Suppress repeated filler loops often produced from trailing silence/noise."""
+    text_lower = text.lower().strip()
+    if not text_lower:
+        return False
+
+    tokens = re.findall(r"\w+", text_lower, flags=re.UNICODE)
+    if len(tokens) < 8:
+        return False
+
+    counts: dict[str, int] = {}
+    for token in tokens:
+        counts[token] = counts.get(token, 0) + 1
+    if max(counts.values()) >= 8 and max(counts.values()) / len(tokens) >= 0.35:
+        return True
+
+    sentences = [s.strip() for s in re.split(r"[.!?。]+", text_lower) if s.strip()]
+    if len(sentences) >= 6:
+        sentence_counts: dict[str, int] = {}
+        for sentence in sentences:
+            sentence_counts[sentence] = sentence_counts.get(sentence, 0) + 1
+        if max(sentence_counts.values()) >= 4:
+            return True
+
+    return False
+
+
 def _is_hallucination(text: str, result) -> bool:
     """Detect Whisper hallucinations using three signals:
     1. Exact-phrase blocklist match (substrings).
@@ -233,6 +262,10 @@ def _is_hallucination(text: str, result) -> bool:
     for pair in _HALLUCINATION_KEYWORD_PAIRS:
         if pair.issubset(words) or all(kw in text_lower for kw in pair):
             return True
+
+    # Signal 4: repeated filler loop (e.g. "Đấy. Đấy. Đấy..." on silence).
+    if _is_repetitive_hallucination(text):
+        return True
 
     return False
 
@@ -309,6 +342,7 @@ def transcribe(
     # Trim dead-air from the end to prevent Whisper hallucinations on trailing
     # noise (runs on normalized audio — same scale as the gate thresholds).
     decode_audio = _trim_trailing_silence(decode_audio)
+    out["eou"] = detect_eou(decode_audio, is_final=is_final).to_dict()
 
     if _is_silence(decode_audio):
         # Hallucination guard: whisper invents text on silence — skip the API.

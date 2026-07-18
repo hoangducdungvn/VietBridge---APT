@@ -239,7 +239,7 @@ export class SessionsService {
     }
 
     const now = Date.now();
-    session.status = 'closing';
+    delete session.activeTurnId;
     session.glossary = {};
     session.recentTurnIds = [];
     session.closedAt = now;

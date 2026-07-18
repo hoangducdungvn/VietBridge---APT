@@ -166,6 +166,22 @@ describe('SessionsService', () => {
     );
   });
 
+  it('rejects a guest with the same source language as the host', () => {
+    const created = service.createSession({
+      displayName: 'Duong',
+      sourceLanguage: 'vi',
+    });
+
+    expectApiError(
+      () =>
+        service.joinSession(created.roomCode, {
+          displayName: 'Alex',
+          sourceLanguage: 'vi',
+        }),
+      'LANGUAGE_PAIR_CONFLICT',
+    );
+  });
+
   it('rejects joining a closed session', () => {
     const created = service.createSession({
       displayName: 'Duong',
