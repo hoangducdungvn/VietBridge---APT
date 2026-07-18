@@ -227,7 +227,7 @@ async function startPipeline(): Promise<void> {
 
   pipeline = new VoicePipeline(
     {
-      gatewayUrl: wsUrlInput.value || 'ws://localhost:8080',
+      gatewayUrl: wsUrlInput.value || 'ws://localhost:8081',
       speakerId: speakerInput.value || 'speaker-a',
       languageHint: (langSelect.value as 'vi' | 'en' | 'auto') || 'vi',
       deviceId: micSelect.value || undefined,

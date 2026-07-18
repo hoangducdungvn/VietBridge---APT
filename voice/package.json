@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "description": "Voice capture, cleanup and streaming module for VietBridge. Implements docs/audio-streaming-contract.md v1.3.",
   "scripts": {
     "dev": "vite",
@@ -13,6 +16,7 @@
   },
   "dependencies": {
     "onnxruntime-web": "^1.27.0",
+    "socket.io-client": "^4.8.3",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
