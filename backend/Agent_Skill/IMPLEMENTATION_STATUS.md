@@ -14,6 +14,7 @@ MVP bilingual translation vertical slice — Voice, STT, Translation, and speake
 - Added a configurable mock/remote STT provider boundary and FastAPI multipart adapter.
 - Added best-effort accumulated-audio partial STT at 2-second intervals and authoritative final STT, with only one partial request in flight.
 - Serialized each turn's partial/final boundary so `turn.end` waits for an in-flight partial before sending authoritative final STT, preventing overlapping requests for the same audio segment.
+- Added stale participant-turn recovery: Voice cancels an unended local turn before starting another, and Backend atomically supersedes any orphaned `started`/`streaming` segment instead of trapping the participant in repeated `PARTICIPANT_TURN_ACTIVE` errors.
 - Added an STT upstream request gate with final-request priority and configurable `STT_MAX_CONCURRENT_REQUESTS` (default `1`), disabled fallback amplification for best-effort partials, and retained one fallback attempt for finals.
 - Made FPT/Groq HTTP sessions thread-local and taught the standalone Voice mock gateway to surface structured STT errors returned inside HTTP 200 responses.
 - Added provider timeout/unavailable/error mapping, provider latency metadata, cleanup on provider failure, and room-wide `stt.partial`/`stt.final` broadcasts.

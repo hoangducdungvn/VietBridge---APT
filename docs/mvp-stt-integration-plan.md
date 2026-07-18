@@ -124,7 +124,7 @@ Client emit `turn.start` với:
 
 Backend trả `turn.accepted` kèm `turnId`. Client chỉ gửi audio sau khi turn được accept; pre-roll phải được buffer trong voice transport adapter trong lúc chờ ACK.
 
-Không có speaker lock toàn session và không có `TURN_BUSY`. Hai participant được phép có turn đồng thời. Chỉ một lệnh start trùng từ chính participant đang có segment capture mới bị reject với `PARTICIPANT_TURN_ACTIVE`; segment cũ đang chờ STT final không chặn segment mới.
+Không có speaker lock toàn session và không có `TURN_BUSY`. Hai participant được phép có turn đồng thời. Mỗi participant chỉ có một segment capture tại một thời điểm; `turn.start` mới sẽ hủy và dọn segment capture cũ bị kẹt rồi trả `turn.accepted`, còn segment đang chờ STT final không chặn segment mới.
 
 ### 5.3 Audio chunk
 

@@ -359,7 +359,7 @@ Server JSON events follow the documented envelope with `type`, `sessionId`, opti
 }
 ```
 
-There is no session-wide active-speaker lock and `TURN_BUSY` is not emitted. Host and guest may each stream an audio segment at the same time from separate devices. A participant may have only one segment in `started`/`streaming` state; a duplicate start from that same participant receives `turn.rejected` with `payload.code = PARTICIPANT_TURN_ACTIVE`. A previous segment already in final-STT processing does not block that participant from starting the next segment.
+There is no session-wide active-speaker lock and `TURN_BUSY` is not emitted. Host and guest may each stream an audio segment at the same time from separate devices. A participant may have only one segment in `started`/`streaming` state. A new `turn.start` from that participant supersedes and cleans up any stale capturing segment before returning a new `turn.accepted`; a previous segment already in final-STT processing does not block the next segment.
 
 ### Client `audio.chunk`
 

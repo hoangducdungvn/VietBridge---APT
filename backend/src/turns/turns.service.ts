@@ -68,14 +68,13 @@ export class TurnsService {
         'The session is not active and cannot accept a turn.',
       );
     }
-    if (
-      this.turnStore.findCapturingByParticipant(sessionId, participantId) !==
-      undefined
-    ) {
-      throw turnError(
-        'PARTICIPANT_TURN_ACTIVE',
-        'This participant already has an active audio segment.',
-      );
+    const staleTurn = this.turnStore.findCapturingByParticipant(
+      sessionId,
+      participantId,
+    );
+    if (staleTurn !== undefined) {
+      this.cancelTurn(sessionId, participantId, staleTurn.turnId);
+      this.sessionCleanupHandler([staleTurn.turnId]);
     }
 
     const audioConfig = parseAudioConfig(audioConfigValue);
