@@ -1,4 +1,4 @@
-export type LanguageCode = 'vi' | 'en' | string;
+export type LanguageCode = 'vi' | 'en';
 
 export type TranslationDirection = `${LanguageCode}-${LanguageCode}`;
 

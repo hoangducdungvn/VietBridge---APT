@@ -1,6 +1,7 @@
 export type RoomLanguage = 'en' | 'vi';
 
 export interface Participant {
+  connectionStatus: 'online' | 'offline';
   id: string;
   language: RoomLanguage;
 }

@@ -1,136 +1,234 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { Socket } from 'socket.io-client';
+import { useSessionStore } from '@application/store/useSessionStore';
 import { useRoomsStore } from '@application/store/useRoomsStore';
-import type { RoomLanguage } from '@domain/entities/Room';
-import { LanguageSelectModal } from '@presentation/views/LanguageSelectModal';
+import type { SessionCredentialsInput, SessionState } from '@domain/entities/BackendSession';
+import { SessionApiClient, SessionApiError } from '@infrastructure/http/SessionApiClient';
+import {
+  SessionSocketClient,
+  type RealtimeSttResult
+} from '@infrastructure/websocket/SessionSocketClient';
 import { MeetingRoomScreen } from '@presentation/views/MeetingRoomScreen';
 import { RoomsLobbyScreen } from '@presentation/views/RoomsLobbyScreen';
 import { RoomWaitingScreen } from '@presentation/views/RoomWaitingScreen';
 
-type AppScreen = 'lobby' | 'language' | 'waiting' | 'meeting';
-
-const LOCAL_PARTICIPANT_ID = 'local-participant';
+type AppScreen = 'lobby' | 'waiting' | 'meeting';
+type RealtimeStatus = 'connecting' | 'connected' | 'reconnecting' | 'error';
 
 export default function App() {
+  const activeSession = useSessionStore((state) => state.activeSession);
+  const serverState = useSessionStore((state) => state.serverState);
+  const setActiveSession = useSessionStore((state) => state.setActiveSession);
+  const setServerState = useSessionStore((state) => state.setServerState);
+  const clearSession = useSessionStore((state) => state.clearSession);
   const rooms = useRoomsStore((state) => state.rooms);
-  const joinRoom = useRoomsStore((state) => state.joinRoom);
-  const leaveRoom = useRoomsStore((state) => state.leaveRoom);
-  const [screen, setScreen] = useState<AppScreen>('lobby');
-  const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
-  const [otherLanguage, setOtherLanguage] = useState<RoomLanguage | null>(null);
-  const [localLanguage, setLocalLanguage] = useState<RoomLanguage | null>(null);
+  const setRooms = useRoomsStore((state) => state.setRooms);
+  const api = useMemo(() => new SessionApiClient(), []);
+  const socketClient = useMemo(() => new SessionSocketClient(), []);
+  const [screen, setScreen] = useState<AppScreen>(() =>
+    activeSession === null ? 'lobby' : serverState?.status === 'active' ? 'meeting' : 'waiting'
+  );
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingRooms, setIsLoadingRooms] = useState(false);
+  const [roomSocket, setRoomSocket] = useState<Socket>();
+  const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>('connecting');
+  const [realtimeError, setRealtimeError] = useState<string>();
+  const [sttResults, setSttResults] = useState<RealtimeSttResult[]>([]);
+  const initialRoomCode =
+    new URLSearchParams(window.location.search).get('room')?.toUpperCase() ?? '';
+  const inviteLanguage = readInviteLanguage(
+    new URLSearchParams(window.location.search).get('language')
+  );
 
-  const activeRoom = useMemo(
-    () => rooms.find((room) => room.roomId === activeRoomId) ?? null,
-    [activeRoomId, rooms]
+  const refreshLobbyRooms = useCallback(async () => {
+    setIsLoadingRooms(true);
+    try {
+      setRooms(await api.getLobbyRooms());
+    } catch (error: unknown) {
+      setErrorMessage(formatError(error));
+    } finally {
+      setIsLoadingRooms(false);
+    }
+  }, [api, setRooms]);
+
+  useEffect(() => {
+    if (screen !== 'lobby' || activeSession !== null) return;
+    void refreshLobbyRooms();
+    const intervalId = window.setInterval(() => void refreshLobbyRooms(), 3_000);
+    return () => window.clearInterval(intervalId);
+  }, [activeSession, refreshLobbyRooms, screen]);
+
+  const applyServerState = useCallback(
+    (state: SessionState) => {
+      setServerState(state);
+      if (state.status === 'closed') {
+        clearSession();
+        setScreen('lobby');
+        return;
+      }
+      setScreen(
+        state.status === 'active' && state.participants.length === 2 ? 'meeting' : 'waiting'
+      );
+    },
+    [clearSession, setServerState]
   );
 
   useEffect(() => {
-    const canEnterMeeting =
-      (screen === 'language' || screen === 'waiting') && localLanguage && otherLanguage;
-    if (!canEnterMeeting) return;
-
-    const transitionTimeout = window.setTimeout(() => setScreen('meeting'), 360);
-    return () => window.clearTimeout(transitionTimeout);
-  }, [localLanguage, otherLanguage, screen]);
-
-  const resetActiveRoom = () => {
-    setActiveRoomId(null);
-    setOtherLanguage(null);
-    setLocalLanguage(null);
-  };
-
-  const handleOpenRoom = (roomId: string) => {
-    const room = rooms.find((candidate) => candidate.roomId === roomId);
-    if (!room || room.participants.every(Boolean)) return;
-
-    const existingParticipant = room.participants.find((participant) => participant !== null);
-    setActiveRoomId(roomId);
-    setOtherLanguage(existingParticipant?.language ?? null);
-    setLocalLanguage(null);
-    setScreen('language');
-  };
-
-  const handleSelectLanguage = (language: RoomLanguage) => {
-    if (!activeRoomId || language === otherLanguage) return;
-
-    const didJoin = joinRoom(activeRoomId, {
-      id: LOCAL_PARTICIPANT_ID,
-      language
-    });
-
-    if (!didJoin) {
-      resetActiveRoom();
-      setScreen('lobby');
+    if (activeSession === null) {
+      socketClient.disconnect();
+      setRoomSocket(undefined);
+      setRealtimeError(undefined);
+      setRealtimeStatus('connecting');
       return;
     }
 
-    setLocalLanguage(language);
-    if (!otherLanguage) setScreen('waiting');
-  };
+    let cancelled = false;
+    const refreshSession = async () => {
+      try {
+        const state = await api.getSession(activeSession.roomCode);
+        if (!cancelled) applyServerState(state);
+      } catch (error: unknown) {
+        if (!cancelled) setErrorMessage(formatError(error));
+      }
+    };
 
-  const handleSimulateJoin = () => {
-    if (!activeRoomId || !localLanguage) return;
-
-    const simulatedLanguage: RoomLanguage = localLanguage === 'en' ? 'vi' : 'en';
-    const didJoin = joinRoom(activeRoomId, {
-      id: `simulated-participant-${activeRoomId}`,
-      language: simulatedLanguage
+    void refreshSession();
+    setRealtimeError(undefined);
+    setRealtimeStatus('connecting');
+    socketClient.connect(activeSession, {
+      onConnectionChange: (connected, socket) => {
+        setRoomSocket(connected ? socket : undefined);
+        setRealtimeStatus((current) =>
+          connected ? 'connected' : current === 'connected' ? 'reconnecting' : 'connecting'
+        );
+        if (connected) setRealtimeError(undefined);
+      },
+      onError: (message) => {
+        setRealtimeError(message);
+        setRealtimeStatus('error');
+      },
+      onSessionState: () => void refreshSession(),
+      onSttResult: (result) => {
+        setSttResults((current) => {
+          const withoutSamePartial = current.filter(
+            (item) => !(item.turnId === result.turnId && item.type === 'partial')
+          );
+          return [...withoutSamePartial, result].slice(-30);
+        });
+      }
     });
 
-    if (didJoin) setOtherLanguage(simulatedLanguage);
+    return () => {
+      cancelled = true;
+      setRoomSocket(undefined);
+      socketClient.disconnect();
+    };
+  }, [activeSession, api, applyServerState, socketClient]);
+
+  const createRoom = async (input: SessionCredentialsInput, roomCode: string) => {
+    setIsSubmitting(true);
+    setErrorMessage(null);
+    try {
+      const session = await api.createSession(input, roomCode);
+      setActiveSession(session);
+      setScreen('waiting');
+    } catch (error: unknown) {
+      setErrorMessage(formatError(error));
+      await refreshLobbyRooms();
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleCloseLanguageSelect = () => {
-    resetActiveRoom();
+  const joinRoom = async (roomCode: string, input: SessionCredentialsInput) => {
+    setIsSubmitting(true);
+    setErrorMessage(null);
+    try {
+      const session = await api.joinSession(roomCode, input);
+      setActiveSession(session);
+      setScreen('meeting');
+    } catch (error: unknown) {
+      setErrorMessage(formatError(error));
+      await refreshLobbyRooms();
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const leaveLocally = () => {
+    clearSession();
+    setErrorMessage(null);
     setScreen('lobby');
   };
 
-  const handleLeaveWaitingRoom = () => {
-    if (activeRoomId) leaveRoom(activeRoomId, LOCAL_PARTICIPANT_ID);
-    resetActiveRoom();
-    setScreen('lobby');
+  const endMeeting = async () => {
+    if (activeSession === null) return;
+    try {
+      await api.endSession(activeSession.sessionId);
+    } catch (error: unknown) {
+      setErrorMessage(formatError(error));
+    } finally {
+      clearSession();
+      setScreen('lobby');
+    }
   };
 
-  const handleEndMeeting = () => {
-    if (activeRoomId) leaveRoom(activeRoomId, LOCAL_PARTICIPANT_ID);
-    resetActiveRoom();
-    setScreen('lobby');
-  };
+  const localLanguage = activeSession?.sourceLanguage;
+  const otherLanguage =
+    serverState?.participants.find(
+      (participant) => participant.participantId !== activeSession?.participantId
+    )?.sourceLanguage ?? activeSession?.targetLanguage;
 
   return (
     <div key={screen} className="animate-screen-enter">
-      {screen === 'lobby' && <RoomsLobbyScreen onJoinRoom={handleOpenRoom} />}
-
-      {screen === 'language' && activeRoom && (
-        <main className="min-h-[100dvh] bg-meeting-canvas">
-          <LanguageSelectModal
-            roomName={activeRoom.roomName}
-            otherParticipantLanguage={otherLanguage}
-            selectedLanguage={localLanguage}
-            onSelectLanguage={handleSelectLanguage}
-            onClose={handleCloseLanguageSelect}
-          />
-        </main>
-      )}
-
-      {screen === 'waiting' && activeRoom && localLanguage && (
-        <RoomWaitingScreen
-          roomId={activeRoom.roomId}
-          roomName={activeRoom.roomName}
-          isParticipantPresent={otherLanguage !== null}
-          onSimulateJoin={handleSimulateJoin}
-          onLeaveRoom={handleLeaveWaitingRoom}
+      {screen === 'lobby' && (
+        <RoomsLobbyScreen
+          errorMessage={errorMessage}
+          initialRoomCode={initialRoomCode}
+          initialSourceLanguage={inviteLanguage}
+          isLoadingRooms={isLoadingRooms}
+          isSubmitting={isSubmitting}
+          rooms={rooms}
+          onCreateRoom={(input, roomCode) => void createRoom(input, roomCode)}
+          onJoinRoom={(roomCode, input) => void joinRoom(roomCode, input)}
+          onRefreshRooms={() => void refreshLobbyRooms()}
         />
       )}
 
-      {screen === 'meeting' && activeRoom && localLanguage && otherLanguage && (
+      {screen === 'waiting' && activeSession && (
+        <RoomWaitingScreen
+          guestLanguage={activeSession.targetLanguage}
+          roomCode={activeSession.roomCode}
+          participants={serverState?.participants ?? []}
+          onLeaveRoom={leaveLocally}
+        />
+      )}
+
+      {screen === 'meeting' && activeSession && localLanguage && otherLanguage && (
         <MeetingRoomScreen
-          roomName={activeRoom.roomName}
+          activeSession={activeSession}
+          realtimeError={realtimeError}
+          realtimeStatus={realtimeStatus}
+          roomSocket={roomSocket}
+          roomName={`Room ${activeSession.roomCode}`}
           localLanguage={localLanguage}
           otherLanguage={otherLanguage}
-          onEndMeeting={handleEndMeeting}
+          sttResults={sttResults}
+          onEndMeeting={() => void endMeeting()}
         />
       )}
     </div>
   );
+}
+
+function formatError(error: unknown): string {
+  if (error instanceof SessionApiError) {
+    return `${error.code}: ${error.message}`;
+  }
+  return error instanceof Error ? error.message : 'Unexpected application error.';
+}
+
+function readInviteLanguage(value: string | null): 'vi' | 'en' {
+  return value === 'en' ? 'en' : 'vi';
 }
