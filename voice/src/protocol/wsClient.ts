@@ -16,9 +16,11 @@ import {
   PROTOCOL_VERSION,
   type AudioChunkMetadata,
   type ErrorEvent,
+  type SttPartialEvent,
   type StreamAckEvent,
   type StreamResumeEvent,
   type StreamThrottleEvent,
+  type TranslationFinalEvent,
   type UtteranceEndEvent,
   type UtteranceStartEvent,
 } from './types';
@@ -47,6 +49,8 @@ export interface VoiceStreamClientEvents {
   onStateChange?(state: ConnectionState): void;
   onLog?(message: string): void;
   onServerAck?(ack: StreamAckEvent): void;
+  onSttPartial?(evt: SttPartialEvent): void;
+  onTranslationFinal?(evt: TranslationFinalEvent): void;
   onThrottle?(evt: StreamThrottleEvent): void;
   onBackpressure?(evt: ErrorEvent): void;
 }
@@ -336,6 +340,11 @@ export class VoiceStreamClient {
     const message = JSON.parse(evt.data) as { type: string } & Record<string, unknown>;
 
     switch (message.type) {
+      case 'session.accepted':
+      case 'source.accepted':
+        this.events.onLog?.(`Gateway accepted: ${message.type}`);
+        break;
+
       case 'heartbeat.pong':
         this.missedPongs = 0;
         if (this.heartbeatWatchdog) clearTimeout(this.heartbeatWatchdog);
@@ -352,6 +361,14 @@ export class VoiceStreamClient {
       case 'stream.throttle':
         this.setState('throttled');
         this.events.onThrottle?.(message as unknown as StreamThrottleEvent);
+        break;
+
+      case 'stt.partial':
+        this.events.onSttPartial?.(message as unknown as SttPartialEvent);
+        break;
+
+      case 'translation.final':
+        this.events.onTranslationFinal?.(message as unknown as TranslationFinalEvent);
         break;
 
       case 'error': {

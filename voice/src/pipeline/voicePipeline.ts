@@ -19,7 +19,7 @@ import {
   type VoiceStreamClientEvents,
   type ConnectionState,
 } from '../protocol/wsClient';
-import type { SpeakerState, LanguageHint } from '../protocol/types';
+import type { SpeakerState, LanguageHint, SttPartialEvent, TranslationFinalEvent } from '../protocol/types';
 
 // ---------------------------------------------------------------------------
 // Config
@@ -55,6 +55,8 @@ export interface VoicePipelineEvents {
   onAudioLevel?(quality: AudioQuality): void;
   onUtteranceStart?(utteranceId: string): void;
   onUtteranceEnd?(utteranceId: string, reason: string): void;
+  onSttPartial?(evt: SttPartialEvent): void;
+  onTranslationFinal?(evt: TranslationFinalEvent): void;
   onChunkSent?(sequence: number): void;
   onLog?(message: string): void;
   onError?(code: string, message: string): void;
@@ -76,6 +78,7 @@ export class VoicePipeline {
 
   private sessionStartTime = 0;
   private running = false;
+  private pendingFinalResolve: (() => void) | null = null;
 
   // Chunk grouping buffer: accumulate N 20ms frames then send as one chunk
   private chunkBuffer: Int16Array[] = [];
@@ -173,6 +176,14 @@ export class VoicePipeline {
       onServerAck: (ack) => {
         this.events.onAcked?.(ack.highest_contiguous_sequence);
       },
+      onSttPartial: (evt) => {
+        this.events.onSttPartial?.(evt);
+      },
+      onTranslationFinal: (evt) => {
+        this.events.onTranslationFinal?.(evt);
+        this.pendingFinalResolve?.();
+        this.pendingFinalResolve = null;
+      },
       onThrottle: (evt) => {
         this.log(`Server throttle: delay=${evt.estimated_queue_delay_ms}ms`);
       },
@@ -193,7 +204,8 @@ export class VoicePipeline {
       this.log(`WebSocket connect failed: ${msg}`);
       this.events.onError?.('WEBSOCKET_DISCONNECTED', msg);
       this.running = false;
-      return;
+      this.wsClient.disconnect();
+      throw err;
     }
 
     // 4. Setup capture handlers
@@ -241,6 +253,7 @@ export class VoicePipeline {
     this.log('Stopping voice pipeline...');
 
     // Close any active utterance
+    const hadActiveUtterance = this.utteranceManager?.isActive() ?? false;
     if (this.utteranceManager?.isActive()) {
       const timestampMs = performance.now() - this.sessionStartTime;
       this.utteranceManager.forceClose('session_end', timestampMs, this.wsClient.getCurrentSequence());
@@ -248,6 +261,21 @@ export class VoicePipeline {
 
     // Stop capture
     await this.capture.stop();
+
+    if (hadActiveUtterance) {
+      this.log('Waiting for final STT result before closing WebSocket...');
+      await new Promise<void>((resolve) => {
+        const timeout = setTimeout(() => {
+          this.log('Final STT wait timed out; closing WebSocket.');
+          resolve();
+        }, 60000);
+        this.pendingFinalResolve = () => {
+          clearTimeout(timeout);
+          resolve();
+        };
+      });
+      this.pendingFinalResolve = null;
+    }
 
     // Disconnect WS
     this.wsClient?.disconnect();

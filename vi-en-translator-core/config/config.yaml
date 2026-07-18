@@ -1,0 +1,10 @@
+gateway:
+  host: "0.0.0.0"
+  port: 8765
+  protocol_version: "1.3"
+  max_utterance_duration_s: 28
+  ack_policy: cumulative_after_utterance_end
+  backpressure: {enabled: false, queue_threshold: null}
+asr: {partial_interval_ms: 1000, partial_beam_size: 1, final_beam_size: 5}
+vad: {server_side_revalidation: false, silence_threshold_ms: 500}
+models: {asr_path: null, mt_path: null, tokenizer_path: null}

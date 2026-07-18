@@ -1,0 +1,3 @@
+id	source_language	text	expected_target_language
+vi_basic	vi	xin chao moi nguoi	en
+en_basic	en	hello everyone	vi

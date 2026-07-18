@@ -117,6 +117,36 @@ export interface StreamAckEvent {
   server_time: string;
 }
 
+export interface SttPartialEvent {
+  protocol_version: typeof PROTOCOL_VERSION;
+  type: 'stt.partial';
+  session_id: string;
+  stream_id: string;
+  utterance_id: string;
+  sent_at: string;
+  partial_transcript: string;
+  confidence: number;
+}
+
+export interface TranslationFinalEvent {
+  protocol_version: typeof PROTOCOL_VERSION;
+  type: 'translation.final';
+  session_id: string;
+  stream_id: string;
+  utterance_id: string;
+  sent_at: string;
+  final_transcript: string;
+  translation: string;
+  confidence: number;
+  low_confidence: boolean;
+  latency_ms: {
+    asr_final?: number;
+    mt?: number;
+    total_since_utterance_end?: number;
+    [key: string]: number | undefined;
+  };
+}
+
 export interface StreamResumeEvent extends EventEnvelope {
   type: 'stream.resume';
   connection_id: string;

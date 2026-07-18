@@ -29,6 +29,10 @@ const mDuration    = $<HTMLDivElement>('m-duration');
 const mSeq         = $<HTMLDivElement>('m-seq');
 const mAcked       = $<HTMLDivElement>('m-acked');
 const mBuffer      = $<HTMLDivElement>('m-buffer');
+const partialTranscript = $<HTMLDivElement>('partial-transcript');
+const finalTranscript   = $<HTMLDivElement>('final-transcript');
+const finalMeta         = $<HTMLDivElement>('final-meta');
+const translationText   = $<HTMLDivElement>('translation-text');
 const eventLog     = $<HTMLDivElement>('event-log');
 
 // ---------------------------------------------------------------------------
@@ -126,6 +130,11 @@ async function startPipeline(): Promise<void> {
   btnStart.disabled = true;
   btnStop.disabled = false;
   eventLog.innerHTML = '';
+  partialTranscript.textContent = 'Waiting for speech...';
+  partialTranscript.classList.add('partial');
+  finalTranscript.textContent = '—';
+  finalMeta.textContent = 'Confidence: —';
+  translationText.textContent = 'Waiting for final translation...';
 
   const events: VoicePipelineEvents = {
     onConnectionStateChange: (state) => {
@@ -160,6 +169,8 @@ async function startPipeline(): Promise<void> {
 
     onUtteranceStart: (id) => {
       appendLog('speech', `▶ utterance.start: ${id}`);
+      partialTranscript.textContent = 'Listening...';
+      partialTranscript.classList.add('partial');
       updateMetrics();
     },
 
@@ -176,6 +187,22 @@ async function startPipeline(): Promise<void> {
       mAcked.textContent = String(seq);
     },
 
+    onSttPartial: (evt) => {
+      partialTranscript.textContent = evt.partial_transcript || '(empty partial)';
+      partialTranscript.classList.add('partial');
+      appendLog('speech', `STT partial: ${evt.partial_transcript || '(empty)'}`);
+    },
+
+    onTranslationFinal: (evt) => {
+      partialTranscript.classList.remove('partial');
+      partialTranscript.textContent = evt.final_transcript || '(empty final)';
+      finalTranscript.textContent = evt.final_transcript || '(empty final)';
+      finalMeta.textContent = `Confidence: ${(evt.confidence * 100).toFixed(1)}%${evt.low_confidence ? ' · low confidence' : ''}`;
+      translationText.textContent = evt.translation || 'MT disabled / no translation returned.';
+      appendLog('speech', `STT final: ${evt.final_transcript || '(empty)'}`);
+      if (evt.translation) appendLog('speech', `Translation: ${evt.translation}`);
+    },
+
     onLog: (msg) => {
       appendLog('ts', msg);
     },
@@ -187,7 +214,7 @@ async function startPipeline(): Promise<void> {
 
   pipeline = new VoicePipeline(
     {
-      gatewayUrl: wsUrlInput.value || 'ws://localhost:8080',
+      gatewayUrl: wsUrlInput.value || 'ws://localhost:8765',
       speakerId: speakerInput.value || 'speaker-a',
       languageHint: (langSelect.value as 'vi' | 'en' | 'auto') || 'vi',
       deviceId: micSelect.value || undefined,

@@ -163,6 +163,40 @@
       padding: 6px 10px;
       font-size: 0.8rem;
     }
+    .result-panel {
+      display: grid;
+      gap: 12px;
+    }
+    .result-box {
+      min-height: 72px;
+      padding: 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .result-label {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--text-muted);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .result-text {
+      font-size: 1rem;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .result-text.partial {
+      color: var(--text-muted);
+      font-style: italic;
+    }
+    .result-meta {
+      margin-top: 6px;
+      color: var(--text-muted);
+      font-size: 0.72rem;
+    }
     input[type="text"] {
       font-family: var(--font);
       font-size: 0.85rem;
@@ -202,7 +236,7 @@
       </div>
       <div class="config-row">
         <label>Gateway URL</label>
-        <input type="text" id="ws-url" value="ws://localhost:8080" />
+        <input type="text" id="ws-url" value="ws://localhost:8765" />
       </div>
     </div>
 
@@ -268,6 +302,26 @@
             <div class="metric-value" id="m-buffer">0</div>
             <div class="metric-label">Resend buffer</div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live STT/MT Output -->
+    <div class="card" style="margin-top:16px">
+      <h2>Live Transcript</h2>
+      <div class="result-panel">
+        <div class="result-box">
+          <span class="result-label">Heard / STT</span>
+          <div class="result-text partial" id="partial-transcript">Waiting for speech...</div>
+        </div>
+        <div class="result-box">
+          <span class="result-label">Final transcript</span>
+          <div class="result-text" id="final-transcript">—</div>
+          <div class="result-meta" id="final-meta">Confidence: —</div>
+        </div>
+        <div class="result-box">
+          <span class="result-label">English translation</span>
+          <div class="result-text" id="translation-text">MT disabled in ASR-only mode.</div>
         </div>
       </div>
     </div>
