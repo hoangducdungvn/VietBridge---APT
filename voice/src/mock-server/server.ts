@@ -9,7 +9,6 @@ import { translate, normalizeLang, TranslationError } from '../../../translation
 import { readFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { Blob } from 'buffer';
 
 // Load .env from project root
 // server.ts lives at: voice/src/mock-server/server.ts
@@ -538,7 +537,9 @@ async function callSttService(
     }
 
     const form = new FormData();
-    form.append('file', new Blob([combined]), 'audio.raw');
+    const audioBuffer = new ArrayBuffer(combined.byteLength);
+    new Uint8Array(audioBuffer).set(combined);
+    form.append('file', new Blob([audioBuffer]), 'audio.raw');
     form.append('utterance_id', utt.id);
     form.append('language_hint', utt.langHint);
     form.append('is_final', isFinal ? 'true' : 'false');
@@ -551,6 +552,21 @@ async function callSttService(
     }
 
     const res = (await resp.json()) as Record<string, unknown>;
+    const providerError = res.error;
+    if (
+      typeof providerError === 'object' &&
+      providerError !== null &&
+      !Array.isArray(providerError)
+    ) {
+      const fields = providerError as Record<string, unknown>;
+      const code = typeof fields.code === 'string' ? fields.code : 'provider_error';
+      const message =
+        typeof fields.message === 'string'
+          ? fields.message
+          : 'STT provider rejected the audio';
+      log('[STT ERROR]', C.red, state.sourceId, `${code}: ${message}`);
+      return;
+    }
 
     // A partial that resolves after the final has been emitted is stale — drop it.
     if (!isFinal && utt.finalized) {

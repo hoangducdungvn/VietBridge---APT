@@ -1,5 +1,6 @@
 import { HttpException } from '@nestjs/common';
 import type { ParticipantsService } from '../participants/participants.service';
+import type { SttTranscriptionResult } from '../providers/stt/stt-transcription-provider.interface';
 import type { SttTranscriptionProvider } from '../providers/stt/stt-transcription-provider.interface';
 import type { TranslationProvider } from '../providers/translation/translation-provider.interface';
 import type { SessionsService } from '../sessions/sessions.service';
@@ -26,9 +27,12 @@ describe('PipelineService translation orchestration', () => {
   let sttProvider: jest.Mocked<SttTranscriptionProvider>;
   let translationProvider: jest.Mocked<TranslationProvider>;
   let turnsService: {
+    appendAudio: jest.Mock;
     beginTurnEnd: jest.Mock;
     completeTurn: jest.Mock;
+    getPartialSnapshot: jest.Mock;
     registerSessionCleanupHandler: jest.Mock;
+    startTurn: jest.Mock;
   };
   let sessionsService: { getSessionById: jest.Mock };
   let participantsService: { getRequiredParticipant: jest.Mock };
@@ -37,6 +41,7 @@ describe('PipelineService translation orchestration', () => {
     sttProvider = { transcribe: jest.fn() };
     translationProvider = { translate: jest.fn() };
     turnsService = {
+      appendAudio: jest.fn(),
       beginTurnEnd: jest.fn().mockReturnValue({
         audio: {
           audio: Buffer.alloc(320),
@@ -48,7 +53,15 @@ describe('PipelineService translation orchestration', () => {
         duplicate: false,
       }),
       completeTurn: jest.fn().mockReturnValue(FINAL_RESULT),
+      getPartialSnapshot: jest.fn().mockReturnValue({
+        audio: Buffer.alloc(64_000),
+        language: 'vi',
+        participantId: 'participant-host',
+        sessionId: 'session-1',
+        turnId: 'turn-1',
+      }),
       registerSessionCleanupHandler: jest.fn(),
+      startTurn: jest.fn().mockReturnValue({ sequence: 3, turnId: 'turn-1' }),
     };
     sessionsService = {
       getSessionById: jest.fn().mockReturnValue({
@@ -158,6 +171,59 @@ describe('PipelineService translation orchestration', () => {
     expect(translationProvider.translate.mock.calls).toHaveLength(0);
     expect(finalHandler).not.toHaveBeenCalled();
     expect(messageHandler).not.toHaveBeenCalled();
+  });
+
+  it('waits for an in-flight partial before sending final STT', async () => {
+    let resolvePartial: ((value: SttTranscriptionResult) => void) | undefined;
+    const partialResult = new Promise<SttTranscriptionResult>((resolve) => {
+      resolvePartial = resolve;
+    });
+    sttProvider.transcribe
+      .mockReturnValueOnce(partialResult)
+      .mockResolvedValueOnce({
+        backend: 'fpt_final',
+        language: 'vi',
+        lowConfidence: false,
+        providerLatencyMs: 180,
+        text: 'Xin chào',
+      });
+    translationProvider.translate.mockResolvedValue({
+      providerLatencyMs: 200,
+      requestId: 'translation_turn-1',
+      sessionId: 'session-1',
+      sourceLanguage: 'vi',
+      targetLanguage: 'en',
+      translatedText: 'Hello',
+      turnId: 'turn-1',
+    });
+
+    service.startTurn('session-1', 'participant-host', {});
+    service.appendAudio({
+      audio: Buffer.alloc(64_000),
+      participantId: 'participant-host',
+      sequence: 0,
+      sessionId: 'session-1',
+      turnId: 'turn-1',
+    });
+    expect(sttProvider.transcribe.mock.calls).toHaveLength(1);
+
+    const ending = service.endTurn('session-1', 'participant-host', 'turn-1');
+    await Promise.resolve();
+    expect(sttProvider.transcribe.mock.calls).toHaveLength(1);
+
+    resolvePartial?.({
+      backend: 'fpt',
+      language: 'vi',
+      lowConfidence: false,
+      providerLatencyMs: 250,
+      text: 'Xin',
+    });
+    await ending;
+
+    expect(sttProvider.transcribe.mock.calls).toHaveLength(2);
+    expect(sttProvider.transcribe.mock.calls[1]?.[0]).toEqual(
+      expect.objectContaining({ isFinal: true, turnId: 'turn-1' }),
+    );
   });
 
   it('keeps final STT and maps translation timeouts to a recoverable code', async () => {

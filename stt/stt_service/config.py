@@ -63,6 +63,13 @@ SAMPLE_RATE = 16000
 TIMEOUT_PARTIAL_S = 5.0
 TIMEOUT_FINAL_S = 10.0
 
+# Limit concurrent upstream transcription calls. FPT intermittently returns
+# HTTP 500 when partial/final requests overlap heavily, so final requests are
+# queued with priority and production defaults to one upstream call at a time.
+STT_MAX_CONCURRENT_REQUESTS = max(
+    1, int(os.environ.get("STT_MAX_CONCURRENT_REQUESTS", "1"))
+)
+
 # --- Partial decode sliding window ---
 # On partial calls, only the last PARTIAL_WINDOW_S seconds of accumulated audio
 # are sent to the API.  Keeps partial latency O(1) regardless of utterance length.

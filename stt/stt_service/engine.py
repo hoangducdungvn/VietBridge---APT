@@ -16,6 +16,7 @@ from __future__ import annotations
 import io
 import logging
 import os
+import threading
 import time
 import wave
 from abc import ABC, abstractmethod
@@ -95,8 +96,8 @@ class FPTCloudEngine(ASREngine):
             )
         self._url = base_url.rstrip("/") + "/v1/audio/transcriptions"
         self._model = model
-        self._session = requests.Session()
-        self._session.headers["Authorization"] = f"Bearer {api_key}"
+        self._authorization = f"Bearer {api_key}"
+        self._session_local = threading.local()
         self._requests = requests
         # Verified 2026-07-17: the FPT endpoint rejects verbose_json (returns
         # 503, not 400), so no segment-level confidence is available from it.
@@ -141,7 +142,7 @@ class FPTCloudEngine(ASREngine):
             form["language"] = language_hint
         files = {"file": ("utterance.wav", wav_bytes, "audio/wav")}
         try:
-            resp = self._session.post(
+            resp = self._get_session().post(
                 self._url, data=form, files=files, timeout=timeout_s
             )
         except self._requests.exceptions.Timeout:
@@ -161,6 +162,14 @@ class FPTCloudEngine(ASREngine):
         if 400 <= resp.status_code < 500:
             raise EngineError("http_4xx", body, resp.status_code)
         raise EngineError("http_5xx", body, resp.status_code)
+
+    def _get_session(self):
+        session = getattr(self._session_local, "session", None)
+        if session is None:
+            session = self._requests.Session()
+            session.headers["Authorization"] = self._authorization
+            self._session_local.session = session
+        return session
 
 
 class GroqEngine(ASREngine):
@@ -189,8 +198,8 @@ class GroqEngine(ASREngine):
             )
         self._url = base_url.rstrip("/") + "/v1/audio/transcriptions"
         self._model = model
-        self._session = requests.Session()
-        self._session.headers["Authorization"] = f"Bearer {api_key}"
+        self._authorization = f"Bearer {api_key}"
+        self._session_local = threading.local()
         self._requests = requests
         # Groq supports verbose_json → we get language + segment-level confidence
         self._response_format = "verbose_json"
@@ -248,7 +257,7 @@ class GroqEngine(ASREngine):
         # For "auto" or unknown: no prompt — let Whisper detect freely.
         files = {"file": ("utterance.wav", wav_bytes, "audio/wav")}
         try:
-            resp = self._session.post(
+            resp = self._get_session().post(
                 self._url, data=form, files=files, timeout=timeout_s
             )
         except self._requests.exceptions.Timeout:
@@ -268,6 +277,14 @@ class GroqEngine(ASREngine):
         if 400 <= resp.status_code < 500:
             raise EngineError("http_4xx", body, resp.status_code)
         raise EngineError("http_5xx", body, resp.status_code)
+
+    def _get_session(self):
+        session = getattr(self._session_local, "session", None)
+        if session is None:
+            session = self._requests.Session()
+            session.headers["Authorization"] = self._authorization
+            self._session_local.session = session
+        return session
 
 
 

@@ -13,6 +13,9 @@ MVP bilingual translation vertical slice — Voice, STT, Translation, and speake
 - Added PCM16/16 kHz/mono validation, ordered sequence validation, binary buffering by `turnId`, 25-second and chunk-size limits, and cleanup on end/error/cancel/disconnect.
 - Added a configurable mock/remote STT provider boundary and FastAPI multipart adapter.
 - Added best-effort accumulated-audio partial STT at 2-second intervals and authoritative final STT, with only one partial request in flight.
+- Serialized each turn's partial/final boundary so `turn.end` waits for an in-flight partial before sending authoritative final STT, preventing overlapping requests for the same audio segment.
+- Added an STT upstream request gate with final-request priority and configurable `STT_MAX_CONCURRENT_REQUESTS` (default `1`), disabled fallback amplification for best-effort partials, and retained one fallback attempt for finals.
+- Made FPT/Groq HTTP sessions thread-local and taught the standalone Voice mock gateway to surface structured STT errors returned inside HTTP 200 responses.
 - Added provider timeout/unavailable/error mapping, provider latency metadata, cleanup on provider failure, and room-wide `stt.partial`/`stt.final` broadcasts.
 - Wired final STT into the provider-agnostic Translation boundary and configured `TRANSLATION_PROVIDER=remote` to call the FPT chat-completions LLM with server-only credentials.
 - Added room-wide `translation.started` and idempotent bilingual `message.final` events containing speaker identity, source/target languages, source/translated text, sequence, and latency metadata.
@@ -46,6 +49,7 @@ MVP bilingual translation vertical slice — Voice, STT, Translation, and speake
 
 - `src/realtime/realtime.gateway.ts` and the wired `RealtimeModule`.
 - `src/pipeline/pipeline.service.ts` and the wired `PipelineModule`.
+- `stt/stt_service/request_gate.py` plus concurrency-gate tests and `stt/.env.example` deployment configuration.
 - `src/providers/translation/translation.module.ts`, mock/remote Translation providers, and Translation orchestration tests.
 - `src/providers/stt/stt-transcription-provider.interface.ts`, mock provider, remote FastAPI provider, and the wired `SttModule`.
 - `src/turns/turn.types.ts`, `turn.store.ts`, `turns.service.ts`, `turns.service.spec.ts`, and the wired `TurnsModule`.
@@ -58,13 +62,14 @@ MVP bilingual translation vertical slice — Voice, STT, Translation, and speake
 ## Validation results
 
 - Lint: PASS — `npm run lint` completed with 0 errors.
-- Tests: PASS — `npm run test -- --runInBand` passed 11 suites and 55 tests, including Translation orchestration, idempotent bilingual messages, concurrent host/guest audio, and room-wide broadcasts.
+- Tests: PASS — `npm run test -- --runInBand` passed 11 suites and 56 tests, including the partial/final race regression test; Python STT tests passed 6 tests including request serialization.
 - Build: PASS — `npm run build` completed with 0 TypeScript errors.
 - Frontend: PASS — lint, 21 tests, and production build completed, including the right-side local source transcript, left-side remote translation, Socket.IO readiness, scrolling, and end-meeting cleanup.
 - Voice: PASS — TypeScript typecheck and production build completed with participant-isolated final/error handling.
+- STT: PASS — Python unit tests and `compileall` completed; upstream calls are serialized with final priority by default.
 - Live Socket.IO smoke: PASS — host and guest connected to one backend session, both were online, and both transports upgraded to WebSocket.
 - LAN HTTPS gateway: PASS — trusted certificate hostname validation, `/health`, REST create/end, and Socket.IO WebSocket upgrade passed through the configured LAN HTTPS origin; the current Wi-Fi URL is `https://192.168.10.19:5173`.
-- Integrated STT smoke: PASS — English WAV routed to Groq and the same non-empty final transcript was broadcast to both Socket.IO clients.
+- Post-fix deployed STT smoke: PENDING — redeploy Backend, STT, and Frontend, then repeat the two-device Vietnamese/English acceptance test.
 
 ## Not implemented yet
 

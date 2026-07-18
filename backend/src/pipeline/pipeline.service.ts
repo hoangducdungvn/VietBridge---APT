@@ -15,6 +15,7 @@ import type {
   AudioChunkInput,
   EndTurnResult,
   StartTurnResult,
+  TurnTranscriptionSnapshot,
 } from '../turns/turn.types';
 import { TurnsService } from '../turns/turns.service';
 
@@ -66,7 +67,7 @@ type MessageFinalHandler = (result: PipelineMessageFinalResult) => void;
 
 @Injectable()
 export class PipelineService {
-  private readonly partialInFlight = new Set<string>();
+  private readonly partialTasks = new Map<string, Promise<void>>();
   private readonly nextPartialAt = new Map<string, number>();
   private partialHandler: PartialHandler = () => undefined;
   private finalHandler: FinalHandler = () => undefined;
@@ -86,7 +87,6 @@ export class PipelineService {
     this.turnsService.registerSessionCleanupHandler((turnIds) => {
       for (const turnId of turnIds) {
         this.cleanupPartialState(turnId);
-        this.partialInFlight.delete(turnId);
       }
     });
   }
@@ -123,7 +123,7 @@ export class PipelineService {
 
   appendAudio(input: AudioChunkInput): void {
     this.turnsService.appendAudio(input);
-    void this.maybeTranscribePartial(input);
+    this.maybeTranscribePartial(input);
   }
 
   async endTurn(
@@ -140,7 +140,11 @@ export class PipelineService {
       return ending.result;
     }
 
+    const pendingPartial = this.partialTasks.get(turnId);
     this.cleanupPartialState(turnId);
+    if (pendingPartial !== undefined) {
+      await pendingPartial;
+    }
     let result: EndTurnResult;
     try {
       const transcription = await this.sttProvider.transcribe({
@@ -225,9 +229,9 @@ export class PipelineService {
     this.turnsService.cancelOpenTurnsForParticipant(sessionId, participantId);
   }
 
-  private async maybeTranscribePartial(input: AudioChunkInput): Promise<void> {
+  private maybeTranscribePartial(input: AudioChunkInput): void {
     const threshold = this.nextPartialAt.get(input.turnId);
-    if (threshold === undefined || this.partialInFlight.has(input.turnId)) {
+    if (threshold === undefined || this.partialTasks.has(input.turnId)) {
       return;
     }
     const snapshot = this.turnsService.getPartialSnapshot(
@@ -239,8 +243,20 @@ export class PipelineService {
       return;
     }
 
-    this.partialInFlight.add(input.turnId);
     this.nextPartialAt.set(input.turnId, threshold + PARTIAL_INTERVAL_BYTES);
+    const task = this.transcribePartial(input.turnId, snapshot);
+    this.partialTasks.set(input.turnId, task);
+    void task.finally(() => {
+      if (this.partialTasks.get(input.turnId) === task) {
+        this.partialTasks.delete(input.turnId);
+      }
+    });
+  }
+
+  private async transcribePartial(
+    turnId: string,
+    snapshot: TurnTranscriptionSnapshot,
+  ): Promise<void> {
     try {
       const result = await this.sttProvider.transcribe({
         audio: snapshot.audio,
@@ -248,7 +264,7 @@ export class PipelineService {
         language: snapshot.language,
         turnId: snapshot.turnId,
       });
-      if (this.nextPartialAt.has(input.turnId)) {
+      if (this.nextPartialAt.has(turnId)) {
         this.partialHandler({
           ...result,
           participantId: snapshot.participantId,
@@ -258,8 +274,6 @@ export class PipelineService {
       }
     } catch {
       // A partial is best-effort. Final STT remains authoritative.
-    } finally {
-      this.partialInFlight.delete(input.turnId);
     }
   }
 
