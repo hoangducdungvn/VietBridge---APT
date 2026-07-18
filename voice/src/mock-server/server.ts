@@ -4,6 +4,29 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { decodeAudioFrame } from '../protocol/packetizer';
 import { PROTOCOL_VERSION } from '../protocol/types';
+import { readFileSync } from 'fs';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+// Load .env from project root
+// server.ts lives at: voice/src/mock-server/server.ts
+// project root  is at: ../../.. (3 levels up)
+try {
+  const __dir = dirname(fileURLToPath(import.meta.url));
+  const envPath = resolve(__dir, '..', '..', '..', '.env'); // voice/src/mock-server → voice/src → voice → project root
+  const lines = readFileSync(envPath, 'utf-8').split('\n');
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#') || !trimmed.includes('=')) continue;
+    const [key, ...rest] = trimmed.split('=');
+    const val = rest.join('=').trim().replace(/^["']|["']$/g, '');
+    if (key && !(key in process.env)) process.env[key.trim()] = val;
+  }
+  console.log('[ENV] Loaded .env from', envPath);
+} catch {
+  console.warn('[ENV] .env not found — relying on shell env vars');
+}
+
 
 const DEFAULT_PORT = 8081;
 const configuredPort = Number.parseInt(process.env.MOCK_GATEWAY_PORT ?? '', 10);
@@ -468,8 +491,98 @@ async function callSttService(
       low_confidence: res.low_confidence ?? false,
       server_time: ts(),
     });
+
+    // If final and we have text, trigger translation pipeline
+    if (isFinal && text.trim().length > 0) {
+      callTranslationService(ws, state, utt.id, text, utt.langHint).catch(() => undefined);
+    }
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     log('[STT ERROR]', C.red, state.sourceId, `Failed calling STT gateway: ${msg}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Translation via FPT LLM (Llama-3.3-70B-Instruct)
+// ---------------------------------------------------------------------------
+async function callTranslationService(
+  ws: WebSocket,
+  state: SessionState,
+  utteranceId: string,
+  sourceText: string,
+  langHint: string,
+): Promise<void> {
+  const llmUrl = process.env.LLM_URL || 'https://mkp-api.fptcloud.com/v1/chat/completions';
+  const llmKey = process.env.FPT_API_KEY || '';
+  const llmModel = process.env.LLM_MODEL || 'Llama-3.3-70B-Instruct';
+
+  if (!llmKey) {
+    log('[TRANSLATION]', C.yellow, state.sourceId, 'FPT_API_KEY not set, skipping translation');
+    return;
+  }
+
+  // Determine direction based on lang hint; default VI→EN
+  const isVietnamese = langHint === 'vi' || langHint === 'auto';
+  const targetLang = isVietnamese ? 'English' : 'Vietnamese';
+  const sourceLang = isVietnamese ? 'Vietnamese' : 'English';
+
+  const prompt = `You are a professional IT meeting interpreter. Translate the following ${sourceLang} text to ${targetLang}.
+Rules:
+- Keep IT/technical terms (merge, deploy, pull request, WebSocket, API, etc.) in English
+- Maintain the speaker's natural tone
+- Return ONLY the translated text, no explanations
+
+Text to translate: ${sourceText}`;
+
+  const t0 = Date.now();
+  try {
+    const resp = await fetch(llmUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${llmKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: llmModel,
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 300,
+        temperature: 0.1,
+      }),
+    });
+
+    if (!resp.ok) {
+      log('[TRANSLATION ERROR]', C.red, state.sourceId, `HTTP ${resp.status}`);
+      return;
+    }
+
+    const data = await resp.json() as { choices?: { message?: { content?: string } }[] };
+    const translated = data.choices?.[0]?.message?.content?.trim() ?? '';
+    const latency = Date.now() - t0;
+
+    log(
+      '[TRANSLATION]',
+      `${C.magenta}${C.bold}`,
+      state.sourceId,
+      `[${llmModel} | ${latency}ms] "${translated}"`,
+    );
+
+    send(ws, {
+      protocol_version: PROTOCOL_VERSION,
+      type: 'translation.final',
+      session_id: state.sessionId,
+      stream_id: state.streamId,
+      source_id: state.sourceId,
+      utterance_id: utteranceId,
+      source_text: sourceText,
+      translated_text: translated,
+      source_lang: isVietnamese ? 'vi' : 'en',
+      target_lang: isVietnamese ? 'en' : 'vi',
+      model: llmModel,
+      translation_latency_ms: latency,
+      server_time: ts(),
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    log('[TRANSLATION ERROR]', C.red, state.sourceId, `LLM call failed: ${msg}`);
   }
 }

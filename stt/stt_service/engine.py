@@ -275,6 +275,7 @@ class GroqEngine(ASREngine):
 def create_engine(backend: Optional[str] = None) -> ASREngine:
     backend = backend or config.BACKEND
     if backend == "auto":
+        # Always default to FPT now, Groq is blocked
         if os.environ.get(config.FPT_API_KEY_ENV):
             backend = "fpt"
         elif os.environ.get(config.GROQ_API_KEY_ENV):
@@ -282,7 +283,9 @@ def create_engine(backend: Optional[str] = None) -> ASREngine:
         else:
             raise ValueError("No API keys found for 'auto' backend routing")
     if backend == "fpt":
-        return FPTCloudEngine()
+        return FPTCloudEngine(model=config.FPT_MODEL)
+    if backend == "fpt_final":
+        return FPTCloudEngine(model=config.FPT_FINAL_MODEL)
     if backend == "groq":
         return GroqEngine()
-    raise ValueError(f"Unknown STT backend {backend!r} (expected 'fpt', 'groq', or 'auto')")
+    raise ValueError(f"Unknown STT backend {backend!r} (expected 'fpt', 'fpt_final', 'groq', or 'auto')")

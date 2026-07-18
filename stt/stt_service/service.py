@@ -26,36 +26,18 @@ _engines: dict[str, ASREngine] = {}
 def resolve_backend(language_hint: str, is_final: bool = False) -> str:
     """Resolve which backend engine to use.
 
-    Split strategy for code-switching (VI+EN mixed speech):
-      - partial: FPT (fast, fine-tuned for VI — good enough for live preview)
-      - final:   Groq (original Whisper, handles EN+VI mix correctly)
-    Controlled by config.CODE_SWITCH_FINAL_GROQ. Set False to always use FPT.
+    Split strategy for FPT Cloud:
+      - partial: fpt (uses FPT.AI-whisper-large-v3-turbo, fast, fine-tuned)
+      - final:   fpt_final (uses whisper-large-v3-turbo, original OpenAI model for code-switching)
     """
     if config.BACKEND != "auto":
         return config.BACKEND
 
-    hint_clean = (language_hint or "").strip().lower().split("-")[0]
-    if hint_clean == "vi":
-        # Code-switch guard: final decode always goes to Groq when available
-        # so that EN words mixed into VI speech are transcribed correctly.
-        if (
-            is_final
-            and config.CODE_SWITCH_FINAL_GROQ
-            and os.environ.get(config.GROQ_API_KEY_ENV)
-        ):
-            return "groq"
-        if os.environ.get(config.FPT_API_KEY_ENV):
-            return "fpt"
-        if os.environ.get(config.GROQ_API_KEY_ENV):
-            return "groq"
-        raise RuntimeError("No API key available for STT backend")
+    # Always use FPT since Groq is currently throwing 403 blocks on VN IPs.
+    if is_final:
+        return "fpt_final"
+    return "fpt"
 
-    # For 'en', 'auto', or any other language hint:
-    if os.environ.get(config.GROQ_API_KEY_ENV):
-        return "groq"
-    if os.environ.get(config.FPT_API_KEY_ENV):
-        return "fpt"
-    raise RuntimeError("No API key available for STT backend")
 
 
 def get_engine(backend_name: Optional[str] = None) -> ASREngine:
@@ -324,12 +306,11 @@ def transcribe(
         if config.BACKEND == "auto":
             fallback_name = None
             if backend_name == "fpt" and e.code in ("http_5xx", "timeout", "network", "http_4xx"):
-                fallback_name = "groq" if os.environ.get(config.GROQ_API_KEY_ENV) else None
-            elif backend_name == "groq" and e.code in ("rate_limit", "http_5xx", "timeout", "network", "http_4xx"):
-                # http_4xx covers Cloudflare "Access denied" (403) — common in Vietnam without VPN.
-                # Gracefully fall back to FPT so the app stays functional (no code-switch support
-                # but pure-VI transcription still works).
-                fallback_name = "fpt" if os.environ.get(config.FPT_API_KEY_ENV) else None
+                # FPT fast model failed — fall back to base whisper on FPT
+                fallback_name = "fpt_final"
+            elif backend_name == "fpt_final" and e.code in ("http_5xx", "timeout", "network", "http_4xx"):
+                # Base whisper on FPT also failed — fall back to fast FPT model as last resort
+                fallback_name = "fpt"
 
             if fallback_name and fallback_name != backend_name:
                 logger.warning(

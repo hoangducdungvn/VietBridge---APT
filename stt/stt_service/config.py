@@ -34,29 +34,26 @@ _load_dotenv()
 BACKEND = os.environ.get("STT_BACKEND", "auto")
 
 # Code-switching support (VI + EN mixed speech):
-# When True and BACKEND="auto", final decodes for language_hint="vi" are routed
-# to Groq instead of FPT.  Groq uses the original Whisper (50+ languages) and
-# handles EN words embedded in Vietnamese speech correctly.
-# Partials still go to FPT for speed (live preview quality is acceptable).
-# Set to False to force FPT for all VI decodes (pure-VI scenarios only).
-CODE_SWITCH_FINAL_GROQ = os.environ.get("CODE_SWITCH_FINAL_GROQ", "true").lower() != "false"
+# Previously used Groq, but Groq is throwing 403 blocks on VN IPs.
+# Now using FPT's hosted original whisper model (FPT_FINAL_MODEL) for final decodes.
+CODE_SWITCH_FINAL_GROQ = False
 
 # --- FPT Cloud (https://github.com/fpt-corp/ai-marketplace) ---
 # Endpoint is OpenAI-compatible: POST {base_url}/v1/audio/transcriptions
 # NOTE: FPT has fine-tuned this model for VI only — EN audio gets phonetically
-# transcribed to Vietnamese regardless of the 'language' parameter (verified 2026-07-17).
+# transcribed to Vietnamese regardless of the 'language' parameter.
 FPT_BASE_URL = os.environ.get("FPT_BASE_URL", "https://mkp-api.fptcloud.com")
-FPT_MODEL = "FPT.AI-whisper-large-v3-turbo"
+FPT_MODEL = "FPT.AI-whisper-large-v3-turbo" # Super fast, VI only (for partial)
+FPT_FINAL_MODEL = "whisper-large-v3-turbo"  # Original base model, code-switching (for final)
 FPT_API_KEY_ENV = "FPT_API_KEY"  # key is ONLY ever read from this env var
 
 # --- Groq Cloud (https://console.groq.com) ---
 # Hosts the ORIGINAL openai/whisper-large-v3-turbo (open-source, 50+ languages).
-# Free tier: 20 RPM, 2000 RPD, 7200 audio-seconds/hour. No credit card needed.
 # Interface is 100% OpenAI-compatible (same endpoint, same multipart form).
-# verbose_json IS supported → language detection + segment confidence available.
 GROQ_BASE_URL = os.environ.get("GROQ_BASE_URL", "https://api.groq.com/openai")
 GROQ_MODEL = "whisper-large-v3-turbo"
-GROQ_API_KEY_ENV = "GROQ_API_KEY"  # key is ONLY ever read from this env var
+GROQ_API_KEY_ENV = "GROQ_API_KEY"
+
 
 
 # --- Audio ---

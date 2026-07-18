@@ -214,14 +214,27 @@ async function startPipeline(): Promise<void> {
         if (partialEl) partialEl.remove();
 
         const finalEl = document.createElement('div');
+        finalEl.id = `utt-${res.utteranceId}`;
         finalEl.style.cssText = 'margin-bottom: 12px; padding: 12px; background: var(--surface); border-left: 4px solid var(--green); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);';
         finalEl.innerHTML = `
-          <div style="font-size: 1.15rem; font-weight: 600; color: #fff; margin-bottom: 4px;">${escapeHtml(res.text)}</div>
-          <div style="font-size: 0.75rem; color: var(--text-muted);">🏆 Finalized via <b>${res.backend}</b> (${res.language.toUpperCase()}) • Latency: <b>${res.latencyMs}ms</b></div>
+          <div style="font-size: 1.1rem; font-weight: 600; color: #fff; margin-bottom: 4px;">${escapeHtml(res.text)}</div>
+          <div style="font-size: 0.75rem; color: var(--text-muted);">🎙️ <b>${res.backend}</b> (${res.language.toUpperCase()}) • ${res.latencyMs}ms</div>
+          <div id="tr-${res.utteranceId}" style="margin-top: 8px; padding: 8px 10px; background: rgba(108,92,231,0.08); border-left: 3px solid var(--accent); border-radius: 4px; color: var(--text-muted); font-style: italic; font-size: 0.95rem;">⏳ Translating...</div>
         `;
         transcriptDisplay.appendChild(finalEl);
         transcriptDisplay.scrollTop = transcriptDisplay.scrollHeight;
       }
+    },
+
+    onTranslationResult: (res) => {
+      const trEl = document.getElementById(`tr-${res.utteranceId}`);
+      if (trEl) {
+        const flag = res.targetLang === 'en' ? '🇺🇸' : '🇻🇳';
+        trEl.style.color = 'var(--text)';
+        trEl.style.fontStyle = 'normal';
+        trEl.innerHTML = `${flag} <b>${escapeHtml(res.translatedText)}</b> <span style="font-size:0.7rem;color:var(--text-muted);">[${res.model} • ${res.latencyMs}ms]</span>`;
+      }
+      appendLog('ts', `🌐 Translation (${res.sourceLang}→${res.targetLang}): ${res.translatedText}`);
     },
   };
 

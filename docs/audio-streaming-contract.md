@@ -7,6 +7,7 @@
 
 ## Changelog
 
+- **1.4** - Cập nhật kiến trúc xử lý Audio: Chuyển High-pass filter (80Hz) và Peak Normalization sang phía Backend (STT Service) để tối ưu chất lượng đầu vào cho Whisper, giảm tải cho Client. Tinh chỉnh các ngưỡng VAD mặc định (speechStart: 0.70, endSilenceMs: 450) để cắt câu nhanh hơn.
 - **1.3** - Đóng toàn bộ O1–O8 (mục 20.2) thành D15–D21 trong 20.1; sửa D3 (ack một lần sau `utterance.end`), D4 (thêm điều kiện fallback MVP nếu trễ mốc ngày 1), D8 (sửa sai vai trò: STT transcribe từng utterance riêng, không tự ghép continuation — việc đó thuộc tầng Translation); thêm §20.3 mô tả mô hình `transcribe()` "periodic re-decode + final"; chốt chính thức model `FPT.AI-whisper-large-v3-turbo` ở §13.1; đồng bộ toàn bộ `protocol_version` trong JSON example về `1.3`.
 - **1.2** - Chốt cứng phương án 2 mic độc lập (tai nghe có dây, mỗi người một mic riêng) cho toàn bộ hackathon. Bỏ hoàn toàn yêu cầu speaker diarization trên một mic chung ra khỏi phạm vi Voice; đơn giản hóa mục 3 và mục 4 (định danh).
 - **1.1** - Bổ sung heartbeat ping/pong để phát hiện idle timeout từ proxy/load balancer; định nghĩa cơ chế server-side backpressure (`stream.throttle`) và ngưỡng kích hoạt `SERVER_BACKPRESSURE`; giải thích rõ ràng buộc 30s receptive field khi chọn maximum utterance duration.
@@ -583,13 +584,21 @@ Utterance tiếp theo dùng cùng `continuation_id` và `continued_from_utteranc
 
 ## 12. Môi trường ồn và làm sạch audio
 
-### 12.1 Thứ tự xử lý đề xuất
+### 12.1 Thứ tự xử lý thực tế (cập nhật v1.4)
 
+Quá trình làm sạch audio được chia làm hai giai đoạn để tận dụng sức mạnh của cả Client (tiết kiệm băng thông) và Server (chất lượng cao).
+
+**Giai đoạn 1: Tại Client (Trình duyệt / Voice module)**
 ```text
-Capture → AEC → high-pass filter → noise suppression → AGC → limiter → VAD
+Capture → Hardware/Browser AEC (Khử vọng) → Noise Suppression (Giảm ồn) → AGC (Cân bằng âm) → VAD
 ```
+*Client chỉ áp dụng các filter có sẵn của WebRTC để phát hiện VAD hiệu quả.*
 
-VAD nên chạy trên audio đã giảm nhiễu, nhưng audio gửi STT không được xử lý quá mạnh.
+**Giai đoạn 2: Tại Backend (STT Service)**
+```text
+Nhận PCM từ Gateway → Trim Trailing Silence (Cắt đuôi tĩnh lặng) → High-pass Filter (80Hz khử DC offset/rumble) → Peak Normalization (-3dBFS) → STT API (Whisper)
+```
+*Việc đẩy High-pass filter và Normalization về backend giúp Whisper luôn nhận được mức âm lượng tối ưu (chuẩn -3dBFS) bất kể người dùng nói nhỏ hay xa mic, đồng thời chặn hoàn toàn tiếng ồn ù ù (rumble).*
 
 ### 12.2 Nguyên tắc an toàn
 

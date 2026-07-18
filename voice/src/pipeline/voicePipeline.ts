@@ -26,6 +26,7 @@ import {
   type VoiceStreamClientEvents,
   type ConnectionState,
   type SttResultEvent,
+  type TranslationResultEvent,
 } from "../protocol/wsClient";
 import type {
   VoiceTransport,
@@ -76,6 +77,7 @@ export interface VoicePipelineEvents {
   onError?(code: string, message: string): void;
   onAcked?(sequence: number): void;
   onSttResult?(result: SttResultEvent): void;
+  onTranslationResult?(result: TranslationResultEvent): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -210,6 +212,9 @@ export class VoicePipeline {
       },
       onSttResult: (res) => {
         this.events.onSttResult?.(res);
+      },
+      onTranslationResult: (res) => {
+        this.events.onTranslationResult?.(res);
       },
     };
 
