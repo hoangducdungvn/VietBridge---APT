@@ -63,6 +63,7 @@ export default function App() {
     (state: SessionState) => {
       setServerState(state);
       if (state.status === 'closed') {
+        setSttResults([]);
         clearSession();
         setScreen('lobby');
         return;
@@ -131,6 +132,7 @@ export default function App() {
     setErrorMessage(null);
     try {
       const session = await api.createSession(input, roomCode);
+      setSttResults([]);
       setActiveSession(session);
       setScreen('waiting');
     } catch (error: unknown) {
@@ -146,6 +148,7 @@ export default function App() {
     setErrorMessage(null);
     try {
       const session = await api.joinSession(roomCode, input);
+      setSttResults([]);
       setActiveSession(session);
       setScreen('meeting');
     } catch (error: unknown) {
@@ -157,6 +160,7 @@ export default function App() {
   };
 
   const leaveLocally = () => {
+    setSttResults([]);
     clearSession();
     setErrorMessage(null);
     setScreen('lobby');
@@ -164,6 +168,7 @@ export default function App() {
 
   const endMeeting = async () => {
     if (activeSession === null) return;
+    setSttResults([]);
     try {
       await api.endSession(activeSession.sessionId);
     } catch (error: unknown) {

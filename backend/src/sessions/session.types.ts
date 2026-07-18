@@ -8,11 +8,11 @@ export type SessionStatus =
   'waiting' | 'active' | 'closing' | 'closed' | 'error';
 
 export interface TranslationSession {
-  activeTurnId?: string;
   closedAt?: number;
   createdAt: number;
   glossary: Record<string, string>;
   lastActivityAt: number;
+  nextTurnSequence: number;
   participantIds: string[];
   recentTurnIds: string[];
   roomCode: string;
@@ -24,6 +24,24 @@ export interface TranslationSession {
 export interface SessionParticipantInput {
   displayName: string;
   sourceLanguage: LanguageCode;
+}
+
+export interface CreateSessionInput extends SessionParticipantInput {
+  roomCode?: string;
+}
+
+export interface LobbyRoomParticipant {
+  connectionStatus: ConnectionStatus;
+  participantId: string;
+  sourceLanguage: LanguageCode;
+}
+
+export interface LobbyRoomResponse {
+  occupancy: number;
+  participants: LobbyRoomParticipant[];
+  roomCode: string;
+  roomName: string;
+  status: 'empty' | 'waiting' | 'full';
 }
 
 export interface CreateSessionResponse {

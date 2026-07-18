@@ -1,14 +1,17 @@
-import { randomInt, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { ParticipantTokenService } from '../auth/participant-token.service';
 import { ApiHttpException } from '../common/errors/api-http.exception';
 import { StructuredLogger } from '../observability/structured-logger.service';
 import { ParticipantsService } from '../participants/participants.service';
 import { SessionStore } from './session.store';
+import { isLobbyRoomCode, LOBBY_ROOMS } from './lobby-room.catalog';
 import type {
+  CreateSessionInput,
   CreateSessionResponse,
   EndSessionResponse,
   JoinSessionResponse,
+  LobbyRoomResponse,
   SessionParticipantInput,
   SessionParticipantView,
   SessionStateResponse,
@@ -16,12 +19,12 @@ import type {
 } from './session.types';
 
 const MAX_PARTICIPANTS = 2;
-const ROOM_CODE_PREFIX = 'APT';
-const ROOM_CODE_RANDOM_SPACE = 36 ** 3;
-const ROOM_CODE_GENERATION_ATTEMPTS = 100;
 
 @Injectable()
 export class SessionsService {
+  private conversationCleanupHandler: (sessionId: string) => void = () =>
+    undefined;
+
   constructor(
     private readonly participantTokenService: ParticipantTokenService,
     private readonly participantsService: ParticipantsService,
@@ -29,16 +32,17 @@ export class SessionsService {
     private readonly logger: StructuredLogger,
   ) {}
 
-  createSession(input: SessionParticipantInput): CreateSessionResponse {
+  createSession(input: CreateSessionInput): CreateSessionResponse {
     const operationStartedAt = Date.now();
     const now = Date.now();
     const session: TranslationSession = {
       createdAt: now,
       glossary: {},
       lastActivityAt: now,
+      nextTurnSequence: 1,
       participantIds: [],
       recentTurnIds: [],
-      roomCode: this.generateUniqueRoomCode(),
+      roomCode: this.allocateLobbyRoom(input.roomCode),
       sessionId: `session_${randomUUID()}`,
       status: 'waiting',
     };
@@ -73,6 +77,12 @@ export class SessionsService {
     };
   }
 
+  registerConversationCleanupHandler(
+    handler: (sessionId: string) => void,
+  ): void {
+    this.conversationCleanupHandler = handler;
+  }
+
   joinSession(
     roomCode: string,
     input: SessionParticipantInput,
@@ -93,6 +103,26 @@ export class SessionsService {
         HttpStatus.CONFLICT,
         'SESSION_FULL',
         'The session already has the maximum number of participants.',
+      );
+    }
+
+    const host = this.participantsService
+      .getRequiredParticipants(session.participantIds)
+      .find((participant) => participant.role === 'host');
+
+    if (host === undefined) {
+      throw new ApiHttpException(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'INTERNAL_ERROR',
+        'The session host could not be resolved.',
+      );
+    }
+
+    if (host.sourceLanguage === input.sourceLanguage) {
+      throw new ApiHttpException(
+        HttpStatus.CONFLICT,
+        'LANGUAGE_PAIR_CONFLICT',
+        'The guest must use the opposite source language from the host.',
       );
     }
 
@@ -131,8 +161,55 @@ export class SessionsService {
     };
   }
 
+  getLobbyRooms(): LobbyRoomResponse[] {
+    return LOBBY_ROOMS.map((room) => {
+      const session = this.sessionStore.findByRoomCode(room.roomCode);
+      if (session === undefined || session.status === 'closed') {
+        return {
+          occupancy: 0,
+          participants: [],
+          roomCode: room.roomCode,
+          roomName: room.roomName,
+          status: 'empty' as const,
+        };
+      }
+      const participants = this.participantsService
+        .getRequiredParticipants(session.participantIds)
+        .map((participant) => ({
+          connectionStatus: participant.connectionStatus,
+          participantId: participant.participantId,
+          sourceLanguage: participant.sourceLanguage,
+        }));
+      return {
+        occupancy: participants.length,
+        participants,
+        roomCode: room.roomCode,
+        roomName: room.roomName,
+        status: participants.length >= MAX_PARTICIPANTS ? 'full' : 'waiting',
+      };
+    });
+  }
+
   getSession(roomCode: string): SessionStateResponse {
     return this.toSessionState(this.getRequiredSessionByRoomCode(roomCode));
+  }
+
+  getSessionById(sessionId: string): TranslationSession {
+    const session = this.sessionStore.findById(sessionId);
+
+    if (session === undefined) {
+      throw new ApiHttpException(
+        HttpStatus.NOT_FOUND,
+        'SESSION_NOT_FOUND',
+        'The session was not found.',
+      );
+    }
+
+    return session;
+  }
+
+  getSessionStateById(sessionId: string): SessionStateResponse {
+    return this.toSessionState(this.getSessionById(sessionId));
   }
 
   endSession(sessionId: string): EndSessionResponse {
@@ -163,11 +240,13 @@ export class SessionsService {
 
     const now = Date.now();
     session.status = 'closing';
-    delete session.activeTurnId;
+    session.glossary = {};
+    session.recentTurnIds = [];
     session.closedAt = now;
     session.lastActivityAt = now;
     session.status = 'closed';
     this.sessionStore.save(session);
+    this.conversationCleanupHandler(session.sessionId);
     this.participantTokenService.revokeSession(session.sessionId);
 
     this.logSessionEvent(
@@ -184,28 +263,38 @@ export class SessionsService {
     };
   }
 
-  private generateUniqueRoomCode(): string {
-    for (
-      let attempt = 0;
-      attempt < ROOM_CODE_GENERATION_ATTEMPTS;
-      attempt += 1
-    ) {
-      const randomPart = randomInt(ROOM_CODE_RANDOM_SPACE)
-        .toString(36)
-        .padStart(3, '0')
-        .toUpperCase();
-      const roomCode = `${ROOM_CODE_PREFIX}${randomPart}`;
-
-      if (!this.sessionStore.hasRoomCode(roomCode)) {
-        return roomCode;
+  private allocateLobbyRoom(requestedRoomCode?: string): string {
+    if (requestedRoomCode !== undefined) {
+      const normalizedRoomCode = requestedRoomCode.toUpperCase();
+      if (
+        !isLobbyRoomCode(normalizedRoomCode) ||
+        !this.isLobbyRoomAvailable(normalizedRoomCode)
+      ) {
+        throw new ApiHttpException(
+          HttpStatus.CONFLICT,
+          'ROOM_UNAVAILABLE',
+          'The selected lobby room is no longer empty.',
+        );
       }
+      return normalizedRoomCode;
     }
 
-    throw new ApiHttpException(
-      HttpStatus.INTERNAL_SERVER_ERROR,
-      'INTERNAL_ERROR',
-      'Unable to allocate a unique room code.',
+    const availableRoom = LOBBY_ROOMS.find((room) =>
+      this.isLobbyRoomAvailable(room.roomCode),
     );
+    if (availableRoom === undefined) {
+      throw new ApiHttpException(
+        HttpStatus.CONFLICT,
+        'LOBBY_FULL',
+        'All five lobby rooms are currently occupied.',
+      );
+    }
+    return availableRoom.roomCode;
+  }
+
+  private isLobbyRoomAvailable(roomCode: string): boolean {
+    const session = this.sessionStore.findByRoomCode(roomCode);
+    return session === undefined || session.status === 'closed';
   }
 
   private getRequiredSessionByRoomCode(roomCode: string): TranslationSession {

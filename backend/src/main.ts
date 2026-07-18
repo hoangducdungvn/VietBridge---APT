@@ -1,6 +1,7 @@
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { validateCorsOrigin } from './config/cors-origin';
 import { StructuredLogger } from './observability/structured-logger.service';
 
 async function bootstrap(): Promise<void> {
@@ -11,16 +12,18 @@ async function bootstrap(): Promise<void> {
   app.useLogger(logger);
   app.enableCors({
     credentials: true,
-    origin: config.getOrThrow<string>('CORS_ORIGIN'),
+    origin: validateCorsOrigin,
   });
 
+  const host = config.getOrThrow<string>('HOST');
   const port = config.getOrThrow<number>('PORT');
-  await app.listen(port);
+  await app.listen(port, host);
 
   logger.log(
     {
       event: 'application.started',
       environment: config.getOrThrow<string>('NODE_ENV'),
+      host,
       port,
       status: 'ready',
     },

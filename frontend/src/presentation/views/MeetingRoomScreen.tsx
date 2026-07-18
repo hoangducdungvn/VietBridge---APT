@@ -79,19 +79,24 @@ function LanguagePane({
 
   return (
     <section
-      className={`flex min-h-[540px] min-w-0 flex-col overflow-hidden bg-white lg:min-h-0 ${
-        isOwnLanguage ? 'bg-[#f8fbff]' : ''
+      data-local-source={isOwnLanguage ? 'true' : 'false'}
+      className={`relative flex h-[36rem] min-h-0 min-w-0 flex-col overflow-hidden sm:h-[40rem] lg:h-full ${
+        isOwnLanguage ? 'bg-[#f3faf5] ring-2 ring-inset ring-meeting-live/55' : 'bg-white'
       }`}
       aria-label={`${details.name} transcript`}
     >
-      <header className="flex min-h-[76px] items-center justify-between border-b border-meeting-line px-5 py-4 sm:px-7">
+      <header
+        className={`flex min-h-[76px] items-center justify-between border-b px-5 py-4 sm:px-7 ${
+          isOwnLanguage ? 'border-meeting-live/25 bg-[#eaf6ee]' : 'border-meeting-line bg-white'
+        }`}
+      >
         <div className="flex min-w-0 items-center gap-3">
           <div
-            className={`relative grid size-11 shrink-0 place-items-center rounded-full bg-meeting-accent text-sm font-bold text-white ${
-              isSpeaking ? 'ring-4 ring-meeting-live/20' : ''
-            }`}
+            className={`relative grid size-11 shrink-0 place-items-center rounded-full text-sm font-bold text-white ${
+              isOwnLanguage ? 'bg-meeting-live' : 'bg-meeting-accent'
+            } ${isSpeaking ? 'ring-4 ring-meeting-live/20' : ''}`}
           >
-            {speakerLabel.slice(-1)}
+            {isOwnLanguage ? 'ME' : speakerLabel.slice(-1).toUpperCase()}
             {isSpeaking && (
               <span className="absolute inset-[-5px] animate-speaking-ring rounded-full border-2 border-meeting-live" />
             )}
@@ -100,8 +105,8 @@ function LanguagePane({
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <h2 className="truncate font-semibold text-meeting-ink">{speakerLabel}</h2>
               {isOwnLanguage && (
-                <span className="rounded-md bg-meeting-accent/10 px-2 py-0.5 text-xs font-semibold text-meeting-accent">
-                  Your language
+                <span className="rounded-md bg-meeting-live/10 px-2 py-0.5 text-xs font-semibold text-meeting-live">
+                  Your source language
                 </span>
               )}
             </div>
@@ -120,7 +125,9 @@ function LanguagePane({
 
       <div
         ref={scrollRef}
-        className="min-h-0 flex-1 overflow-y-auto px-5 py-6 sm:px-7"
+        tabIndex={0}
+        aria-label={`${details.name} transcript history`}
+        className="transcript-scrollbar min-h-0 flex-1 scroll-smooth overflow-y-auto overscroll-contain px-5 py-6 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-meeting-accent sm:px-7"
         aria-live="polite"
       >
         {transcript.length === 0 ? (
@@ -149,11 +156,19 @@ function LanguagePane({
       </div>
 
       <div
-        className="min-h-[132px] border-t border-meeting-accent/20 bg-meeting-accent/[0.055] px-5 py-4 sm:px-7"
+        className={`min-h-[132px] border-t px-5 py-4 sm:px-7 ${
+          isOwnLanguage
+            ? 'border-meeting-live/25 bg-[#eaf6ee]'
+            : 'border-meeting-accent/20 bg-meeting-accent/[0.055]'
+        }`}
         aria-live="assertive"
         aria-atomic="true"
       >
-        <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-meeting-accent">
+        <div
+          className={`mb-2 flex items-center gap-2 text-xs font-semibold ${
+            isOwnLanguage ? 'text-meeting-live' : 'text-meeting-accent'
+          }`}
+        >
           <span
             className={`size-2 rounded-full ${isSpeaking ? 'animate-live-dot bg-meeting-live' : 'bg-meeting-muted/40'}`}
           />
@@ -371,17 +386,19 @@ export function MeetingRoomScreen({
         </button>
       </header>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-2">
+      <div className="grid min-h-0 flex-1 grid-cols-1 overflow-visible lg:grid-cols-2 lg:overflow-hidden">
         {orderedLanguages.map((language, index) => (
           <div
             key={language}
-            className={`h-full ${index === 0 ? 'border-b border-meeting-accent lg:border-b-0 lg:border-r' : ''}`}
+            className={`min-h-0 lg:h-full ${
+              index === 0 ? 'border-b border-meeting-accent lg:border-b-0 lg:border-r' : ''
+            }`}
           >
             <LanguagePane
               language={language}
               isOwnLanguage={language === localLanguage}
               isSpeaking={speakingLanguage === language}
-              speakerLabel={language === localLanguage ? 'Speaker A' : 'Speaker B'}
+              speakerLabel={language === localLanguage ? 'You' : 'Other participant'}
               liveCaption={language === 'vi' ? liveCaptions.vi : liveCaptions.en}
               transcript={language === 'vi' ? transcripts.vi : transcripts.en}
             />

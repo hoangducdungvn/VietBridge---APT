@@ -13,6 +13,12 @@ export class ParticipantStore {
     return this.participantsById.get(participantId);
   }
 
+  findBySocketId(socketId: string): Participant | undefined {
+    return Array.from(this.participantsById.values()).find(
+      (participant) => participant.socketId === socketId,
+    );
+  }
+
   clear(): void {
     this.participantsById.clear();
   }

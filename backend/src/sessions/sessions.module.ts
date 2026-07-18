@@ -4,12 +4,13 @@ import { InMemoryRateLimitService } from '../common/rate-limit/in-memory-rate-li
 import { ObservabilityModule } from '../observability/observability.module';
 import { ParticipantsModule } from '../participants/participants.module';
 import { SessionMutationRateLimitGuard } from './session-mutation-rate-limit.guard';
+import { LobbyRoomsController } from './lobby-rooms.controller';
 import { SessionStore } from './session.store';
 import { SessionsController } from './sessions.controller';
 import { SessionsService } from './sessions.service';
 
 @Module({
-  controllers: [SessionsController],
+  controllers: [LobbyRoomsController, SessionsController],
   exports: [SessionStore, SessionsService],
   imports: [AuthModule, ObservabilityModule, ParticipantsModule],
   providers: [
