@@ -37,6 +37,65 @@ const PORT =
     ? configuredPort
     : DEFAULT_PORT;
 
+// §20.3 D16: partial STT cadence. Default 1000ms; tunable via PARTIAL_CADENCE_MS env.
+// README STT recommends 2000ms, p95 latency 2.9s. inFlightPartial gate prevents pile-up.
+const PARTIAL_CADENCE_MS = (() => {
+  const v = Number.parseInt(process.env.PARTIAL_CADENCE_MS ?? '', 10);
+  return Number.isFinite(v) && v > 0 ? v : 1000;
+})();
+
+// ---------------------------------------------------------------------------
+// Session registry — maps sessionId → set of active WebSocket connections.
+// All members of a session receive broadcast results (fan-out).
+// ---------------------------------------------------------------------------
+const sessionRegistry = new Map<string, Set<WebSocket>>();
+
+function registerSession(sessionId: string, ws: WebSocket): void {
+  if (!sessionId) return;
+  let members = sessionRegistry.get(sessionId);
+  if (!members) {
+    members = new Set();
+    sessionRegistry.set(sessionId, members);
+  }
+  members.add(ws);
+  log('[SESSION]', C.cyan, sessionId, `registered — members now ${members.size}`);
+}
+
+function deregisterSession(sessionId: string, ws: WebSocket): void {
+  const members = sessionRegistry.get(sessionId);
+  if (!members) return;
+  members.delete(ws);
+  log('[SESSION]', C.dim, sessionId, `deregistered — members now ${members.size}`);
+  if (members.size === 0) sessionRegistry.delete(sessionId);
+}
+
+/**
+ * Send payload to every open WS in the session.
+ * Falls back to sending only to `fallback` when sessionId is absent.
+ */
+function broadcastToSession(
+  sessionId: string,
+  fallback: WebSocket,
+  payload: Record<string, unknown>,
+): void {
+  const members = sessionId ? sessionRegistry.get(sessionId) : undefined;
+  if (!members || members.size === 0) {
+    // No registry entry yet (session.start not received) — echo back to sender only.
+    send(fallback, payload);
+    return;
+  }
+  const json = JSON.stringify(payload);
+  let sent = 0;
+  for (const ws of members) {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(json);
+      sent++;
+    }
+  }
+  log('[BROADCAST]', `${C.dim}${C.green}`, sessionId, `→ ${payload.type as string} × ${sent} clients`);
+}
+
+
 // ---------------------------------------------------------------------------
 // ANSI color helpers
 // ---------------------------------------------------------------------------
@@ -157,6 +216,9 @@ wss.on('connection', (ws: WebSocket) => {
   });
 
   ws.on('close', () => {
+    // Deregister from session registry
+    if (state.sessionId) deregisterSession(state.sessionId, ws);
+
     const elapsed = ((Date.now() - state.connectedAt) / 1000).toFixed(1);
     log(
       '[DISCONNECT]',
@@ -174,6 +236,7 @@ wss.on('connection', (ws: WebSocket) => {
     log('[ERROR]', C.red, state.sourceId, err.message);
   });
 });
+
 
 // ---------------------------------------------------------------------------
 // Buffer normalisation (ws may deliver Buffer, ArrayBuffer, or Buffer[])
@@ -209,6 +272,9 @@ function handleTextFrame(ws: WebSocket, state: SessionState, raw: string): void 
       const audio = evt.audio as Record<string, unknown> | undefined;
       const codec = audio?.codec ?? '?';
       const sampleRate = audio?.sample_rate_hz ?? '?';
+
+      // Register this connection into the session fan-out registry
+      registerSession(state.sessionId, ws);
 
       log(
         '[EVENT]',
@@ -431,7 +497,7 @@ function handleBinaryFrame(_ws: WebSocket, state: SessionState, buffer: ArrayBuf
     if (
       !state.activeUtterance.inFlightPartial &&
       !state.activeUtterance.finalized &&
-      now - state.activeUtterance.lastPartialMs >= 1000
+      now - state.activeUtterance.lastPartialMs >= PARTIAL_CADENCE_MS
     ) {
       state.activeUtterance.lastPartialMs = now;
       callSttService(_ws, state, state.activeUtterance, false);
@@ -505,12 +571,13 @@ async function callSttService(
       `[backend=${backend} | ${latency}ms] utt=${C.yellow}${utt.id}${C.reset} "${text}"`,
     );
 
-    send(ws, {
+    broadcastToSession(state.sessionId, ws, {
       protocol_version: PROTOCOL_VERSION,
       type: isFinal ? 'stt.final' : 'stt.partial',
       session_id: state.sessionId,
       stream_id: state.streamId,
       source_id: state.sourceId,
+      speaker_id: state.speakerId,
       utterance_id: utt.id,
       text,
       language: res.language ?? utt.langHint,
@@ -553,12 +620,13 @@ async function callTranslationService(
       `[${res.model} | ${res.latencyMs}ms] "${res.translatedText}"`,
     );
 
-    send(ws, {
+    broadcastToSession(state.sessionId, ws, {
       protocol_version: PROTOCOL_VERSION,
       type: 'translation.final',
       session_id: state.sessionId,
       stream_id: state.streamId,
       source_id: state.sourceId,
+      speaker_id: state.speakerId,
       utterance_id: utteranceId,
       source_text: sourceText,
       translated_text: res.translatedText,

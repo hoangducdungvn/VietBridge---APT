@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Socket } from 'socket.io-client';
-import { SocketIoVoiceTransport, VoicePipeline } from 'vietbridge-voice';
+import { VoicePipeline, SocketIoVoiceTransport } from 'vietbridge-voice';
+import type { VoiceTransportFactory } from 'vietbridge-voice';
 import {
   GearSix,
   Microphone,
@@ -12,7 +13,7 @@ import {
 import type { LanguageCode } from '@shared/types';
 import type { ParticipantSession } from '@domain/entities/BackendSession';
 import { env } from '@infrastructure/config/env';
-import type { RealtimeSttResult } from '@infrastructure/websocket/SessionSocketClient';
+import type { RealtimeSttResult, RealtimeTranslationResult } from '@infrastructure/websocket/SessionSocketClient';
 
 interface MeetingRoomScreenProps {
   activeSession: ParticipantSession;
@@ -23,6 +24,7 @@ interface MeetingRoomScreenProps {
   localLanguage: LanguageCode;
   otherLanguage: LanguageCode;
   sttResults: RealtimeSttResult[];
+  translationResults: RealtimeTranslationResult[];
   onEndMeeting: () => void;
 }
 
@@ -31,6 +33,9 @@ interface TranscriptItem {
   text: string;
   timestamp: string;
   turn: number;
+  /** Translation of this utterance into the other language (if received). */
+  translatedText?: string;
+  targetLang?: string;
 }
 
 const languageDetails = {
@@ -53,6 +58,8 @@ interface LanguagePaneProps {
   speakerLabel: string;
   liveCaption: string;
   transcript: TranscriptItem[];
+  /** Live tentative translation of the current partial (shown dimmed below live caption). */
+  liveTranslation?: string;
 }
 
 function LanguagePane({
@@ -61,7 +68,8 @@ function LanguagePane({
   isSpeaking,
   speakerLabel,
   liveCaption,
-  transcript
+  transcript,
+  liveTranslation
 }: LanguagePaneProps) {
   const details = getLanguageDetails(language);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -139,6 +147,14 @@ function LanguagePane({
                 }`}
               >
                 <p className="text-base leading-7 text-meeting-ink">{item.text}</p>
+                {item.translatedText && (
+                  <p className="mt-1.5 border-t border-meeting-line pt-1.5 text-sm leading-6 text-meeting-muted">
+                    <span className="mr-1 text-xs">
+                      {item.targetLang === 'en' ? '🇺🇸' : '🇻🇳'}
+                    </span>
+                    {item.translatedText}
+                  </p>
+                )}
                 <time className="mt-2 block text-xs font-medium text-meeting-muted">
                   {item.timestamp}
                 </time>
@@ -148,26 +164,31 @@ function LanguagePane({
         )}
       </div>
 
-      <div
-        className="min-h-[132px] border-t border-meeting-accent/20 bg-meeting-accent/[0.055] px-5 py-4 sm:px-7"
-        aria-live="assertive"
-        aria-atomic="true"
-      >
-        <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-meeting-accent">
-          <span
-            className={`size-2 rounded-full ${isSpeaking ? 'animate-live-dot bg-meeting-live' : 'bg-meeting-muted/40'}`}
-          />
-          Live caption
-        </div>
-        <p
-          className={`min-h-14 text-lg font-semibold leading-7 text-meeting-ink sm:text-xl ${liveCaption ? '' : 'text-meeting-muted'}`}
+        <div
+          className="min-h-[132px] border-t border-meeting-accent/20 bg-meeting-accent/[0.055] px-5 py-4 sm:px-7"
+          aria-live="assertive"
+          aria-atomic="true"
         >
-          {liveCaption || 'Waiting for speech...'}
-          {liveCaption && (
-            <span className="ml-1 inline-block h-5 w-0.5 animate-caption-cursor bg-meeting-accent align-middle" />
+          <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-meeting-accent">
+            <span
+              className={`size-2 rounded-full ${isSpeaking ? 'animate-live-dot bg-meeting-live' : 'bg-meeting-muted/40'}`}
+            />
+            Live caption
+          </div>
+          <p
+            className={`min-h-14 text-lg font-semibold leading-7 text-meeting-ink sm:text-xl ${liveCaption ? '' : 'text-meeting-muted'}`}
+          >
+            {liveCaption || 'Waiting for speech...'}
+            {liveCaption && (
+              <span className="ml-1 inline-block h-5 w-0.5 animate-caption-cursor bg-meeting-accent align-middle" />
+            )}
+          </p>
+          {liveTranslation && (
+            <p className="mt-2 text-sm leading-6 text-meeting-muted opacity-80">
+              {liveTranslation}
+            </p>
           )}
-        </p>
-      </div>
+        </div>
     </section>
   );
 }
@@ -181,6 +202,7 @@ export function MeetingRoomScreen({
   localLanguage,
   otherLanguage,
   sttResults,
+  translationResults,
   onEndMeeting
 }: MeetingRoomScreenProps) {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -206,9 +228,15 @@ export function MeetingRoomScreen({
   }, [sttResults]);
   const transcripts = useMemo(() => {
     const grouped: Record<'en' | 'vi', TranscriptItem[]> = { en: [], vi: [] };
+    // Build a lookup map from utteranceId → translation for O(1) access
+    const translationByUtteranceId = new Map(
+      translationResults.map((t) => [t.utteranceId, t])
+    );
     sttResults
       .filter((result) => result.type === 'final' && result.text.trim() !== '')
       .forEach((result, turn) => {
+        // utteranceId for mock-server WS mode lives in result.turnId
+        const translation = translationByUtteranceId.get(result.turnId);
         grouped[result.language].push({
           id: result.turnId,
           text: result.text,
@@ -217,17 +245,31 @@ export function MeetingRoomScreen({
             minute: '2-digit',
             second: '2-digit'
           }).format(new Date(result.receivedAt)),
-          turn
+          turn,
+          translatedText: translation?.translatedText,
+          targetLang: translation?.targetLang,
         });
       });
     return grouped;
-  }, [sttResults]);
+  }, [sttResults, translationResults]);
   const remotePartial = [...sttResults]
     .reverse()
     .find(
       (result) => result.type === 'partial' && result.participantId !== activeSession.participantId
     );
   const speakingLanguage = isVadSpeaking ? localLanguage : remotePartial?.language;
+
+  /** Latest translation per target language (for live translation display). */
+  const liveTranslations = useMemo(() => {
+    const latest: Record<'en' | 'vi', string> = { en: '', vi: '' };
+    for (const t of translationResults) {
+      if (t.targetLang === 'en' || t.targetLang === 'vi') {
+        latest[t.targetLang] = t.translatedText;
+      }
+    }
+    return latest;
+  }, [translationResults]);
+
 
   useEffect(() => {
     const timer = window.setInterval(() => setElapsedSeconds((seconds) => seconds + 1), 1000);
@@ -247,25 +289,37 @@ export function MeetingRoomScreen({
 
   const startMicrophone = useCallback(async () => {
     if (pipelineRef.current) return;
-    if (!roomSocket?.connected) {
-      setVoiceError('Waiting for the realtime connection before starting the microphone.');
-      return;
-    }
 
     autoStartEnabledRef.current = true;
     const requestId = startRequestRef.current + 1;
     startRequestRef.current = requestId;
     setVoiceError(undefined);
     setIsMicStarting(true);
+
+    // Transport selection:
+    //   VITE_TRANSPORT=ws (or roomSocket not connected) → raw WS to mock-server
+    //   otherwise → Socket.IO transport to NestJS backend
+    const useWsMode =
+      import.meta.env.VITE_TRANSPORT === 'ws' || !roomSocket?.connected;
+    const mockGatewayUrl =
+      import.meta.env.VITE_MOCK_GATEWAY_URL ?? 'ws://localhost:8081';
+
+    const transportFactory: VoiceTransportFactory | undefined = useWsMode
+      ? undefined  // VoicePipeline defaults to raw VoiceStreamClient WS
+      : (config, events) => new SocketIoVoiceTransport(roomSocket!, config, events);
+
     const pipeline = new VoicePipeline(
       {
         enableSileroVad: false,
-        gatewayUrl: env.backendWsUrl,
+        // In WS mode, gatewayUrl goes directly to mock-server.
+        // In Socket.IO mode, the URL is only used as a fallback label
+        // (transport handles its own connection).
+        gatewayUrl: useWsMode ? mockGatewayUrl : env.backendWsUrl,
         languageHint: activeSession.sourceLanguage,
         participantId: activeSession.participantId,
         sessionId: activeSession.sessionId,
         speakerId: activeSession.participantId,
-        transportFactory: (config, events) => new SocketIoVoiceTransport(roomSocket, config, events)
+        ...(transportFactory ? { transportFactory } : {}),
       },
       {
         onError: (code, message) => {
@@ -295,7 +349,15 @@ export function MeetingRoomScreen({
     }
   }, [activeSession, roomSocket]);
 
+  // Auto-start mic when transport is ready.
+  // WS mode: start immediately (no roomSocket needed).
+  // Socket.IO mode: wait for roomSocket to connect.
   useEffect(() => {
+    const wsMode = import.meta.env.VITE_TRANSPORT === 'ws';
+    if (wsMode) {
+      if (autoStartEnabledRef.current && !pipelineRef.current) void startMicrophone();
+      return;
+    }
     if (!roomSocket?.connected) {
       if (pipelineRef.current) void stopMicrophone(false);
       return;
@@ -384,6 +446,7 @@ export function MeetingRoomScreen({
               speakerLabel={language === localLanguage ? 'Speaker A' : 'Speaker B'}
               liveCaption={language === 'vi' ? liveCaptions.vi : liveCaptions.en}
               transcript={language === 'vi' ? transcripts.vi : transcripts.en}
+              liveTranslation={language === 'vi' ? liveTranslations.en : liveTranslations.vi}
             />
           </div>
         ))}

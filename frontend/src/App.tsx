@@ -6,7 +6,8 @@ import type { SessionCredentialsInput, SessionState } from '@domain/entities/Bac
 import { SessionApiClient, SessionApiError } from '@infrastructure/http/SessionApiClient';
 import {
   SessionSocketClient,
-  type RealtimeSttResult
+  type RealtimeSttResult,
+  type RealtimeTranslationResult
 } from '@infrastructure/websocket/SessionSocketClient';
 import { MeetingRoomScreen } from '@presentation/views/MeetingRoomScreen';
 import { RoomsLobbyScreen } from '@presentation/views/RoomsLobbyScreen';
@@ -25,9 +26,11 @@ export default function App() {
   const setRooms = useRoomsStore((state) => state.setRooms);
   const api = useMemo(() => new SessionApiClient(), []);
   const socketClient = useMemo(() => new SessionSocketClient(), []);
-  const [screen, setScreen] = useState<AppScreen>(() =>
-    activeSession === null ? 'lobby' : serverState?.status === 'active' ? 'meeting' : 'waiting'
-  );
+  const [screen, setScreen] = useState<AppScreen>(() => {
+    const demoParam = new URLSearchParams(window.location.search).get('demo');
+    if (demoParam === 'vi' || demoParam === 'en') return 'meeting';
+    return activeSession === null ? 'lobby' : serverState?.status === 'active' ? 'meeting' : 'waiting';
+  });
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingRooms, setIsLoadingRooms] = useState(false);
@@ -35,11 +38,15 @@ export default function App() {
   const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>('connecting');
   const [realtimeError, setRealtimeError] = useState<string>();
   const [sttResults, setSttResults] = useState<RealtimeSttResult[]>([]);
+  const [translationResults, setTranslationResults] = useState<RealtimeTranslationResult[]>([]);
   const initialRoomCode =
     new URLSearchParams(window.location.search).get('room')?.toUpperCase() ?? '';
   const inviteLanguage = readInviteLanguage(
     new URLSearchParams(window.location.search).get('language')
   );
+  // Demo bypass: ?demo=vi or ?demo=en skips NestJS entirely.
+  // Open two tabs: localhost:5173?demo=vi and localhost:5173?demo=en
+  const demoLang = new URLSearchParams(window.location.search).get('demo') as 'vi' | 'en' | null;
 
   const refreshLobbyRooms = useCallback(async () => {
     setIsLoadingRooms(true);
@@ -116,6 +123,13 @@ export default function App() {
           );
           return [...withoutSamePartial, result].slice(-30);
         });
+      },
+      onTranslationResult: (result) => {
+        setTranslationResults((current) => {
+          // Replace any existing result for the same utterance, keep last 50
+          const filtered = current.filter((t) => t.utteranceId !== result.utteranceId);
+          return [...filtered, result].slice(-50);
+        });
       }
     });
 
@@ -180,6 +194,22 @@ export default function App() {
       (participant) => participant.participantId !== activeSession?.participantId
     )?.sourceLanguage ?? activeSession?.targetLanguage;
 
+  // Demo session — synthetic, no NestJS required. Activated via ?demo=vi or ?demo=en.
+  const demoSession = demoLang
+    ? {
+        accessToken: 'demo-token',
+        participantId: `demo-participant-${demoLang}`,
+        role: 'host' as const,
+        roomCode: 'DEMO',
+        sessionId: 'demo-session-001',
+        sourceLanguage: demoLang,
+        targetLanguage: (demoLang === 'vi' ? 'en' : 'vi') as 'vi' | 'en',
+      }
+    : null;
+  const effectiveSession = demoSession ?? activeSession;
+  const effectiveLocal = demoSession?.sourceLanguage ?? localLanguage;
+  const effectiveOther = demoSession?.targetLanguage ?? otherLanguage;
+
   return (
     <div key={screen} className="animate-screen-enter">
       {screen === 'lobby' && (
@@ -205,16 +235,17 @@ export default function App() {
         />
       )}
 
-      {screen === 'meeting' && activeSession && localLanguage && otherLanguage && (
+      {screen === 'meeting' && effectiveSession && effectiveLocal && effectiveOther && (
         <MeetingRoomScreen
-          activeSession={activeSession}
+          activeSession={effectiveSession}
           realtimeError={realtimeError}
-          realtimeStatus={realtimeStatus}
+          realtimeStatus={demoLang ? 'connected' : realtimeStatus}
           roomSocket={roomSocket}
-          roomName={`Room ${activeSession.roomCode}`}
-          localLanguage={localLanguage}
-          otherLanguage={otherLanguage}
+          roomName={demoLang ? `Demo Room (${demoLang.toUpperCase()})` : `Room ${effectiveSession.roomCode}`}
+          localLanguage={effectiveLocal}
+          otherLanguage={effectiveOther}
           sttResults={sttResults}
+          translationResults={translationResults}
           onEndMeeting={() => void endMeeting()}
         />
       )}

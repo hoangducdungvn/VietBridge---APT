@@ -51,6 +51,9 @@ export interface SttResultEvent {
   latencyMs: number;
   utteranceId: string;
   lowConfidence?: boolean;
+  /** Which audio source produced this result (identifies speaker in multi-client sessions). */
+  sourceId?: string;
+  speakerId?: string;
 }
 
 export interface TranslationResultEvent {
@@ -61,6 +64,9 @@ export interface TranslationResultEvent {
   targetLang: string;
   model: string;
   latencyMs: number;
+  /** Which audio source produced the original utterance. */
+  sourceId?: string;
+  speakerId?: string;
 }
 
 export interface VoiceStreamClientEvents {
@@ -398,6 +404,8 @@ export class VoiceStreamClient {
           asr_latency_ms: number;
           utterance_id: string;
           low_confidence?: boolean;
+          source_id?: string;
+          speaker_id?: string;
         };
         this.events.onSttResult?.({
           type: stt.type === 'stt.final' ? 'final' : 'partial',
@@ -407,6 +415,8 @@ export class VoiceStreamClient {
           latencyMs: stt.asr_latency_ms || 0,
           utteranceId: stt.utterance_id || '',
           lowConfidence: stt.low_confidence === true,
+          sourceId: stt.source_id,
+          speakerId: stt.speaker_id,
         });
         break;
       }
@@ -420,6 +430,8 @@ export class VoiceStreamClient {
           target_lang: string;
           model: string;
           translation_latency_ms: number;
+          source_id?: string;
+          speaker_id?: string;
         };
         this.events.onTranslationResult?.({
           utteranceId: tr.utterance_id || '',
@@ -429,6 +441,8 @@ export class VoiceStreamClient {
           targetLang: tr.target_lang || 'en',
           model: tr.model || '',
           latencyMs: tr.translation_latency_ms || 0,
+          sourceId: tr.source_id,
+          speakerId: tr.speaker_id,
         });
         break;
       }
