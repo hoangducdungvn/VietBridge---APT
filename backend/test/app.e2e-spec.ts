@@ -44,6 +44,41 @@ describe('VietBridge backend (e2e)', () => {
     });
   });
 
+  it('GET /api/rooms always returns the five lobby slots', async () => {
+    const initialResponse = await request(app.getHttpServer())
+      .get('/api/rooms')
+      .expect(200);
+    const initialRooms = getArrayBody(initialResponse);
+    expect(initialRooms).toHaveLength(5);
+    expect(initialRooms).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ roomCode: 'APT001', status: 'empty' }),
+        expect.objectContaining({ roomCode: 'APT005', status: 'empty' }),
+      ]),
+    );
+
+    await request(app.getHttpServer())
+      .post('/api/sessions')
+      .send({
+        displayName: 'Duong',
+        roomCode: 'APT004',
+        sourceLanguage: 'vi',
+      })
+      .expect(201);
+    const occupiedResponse = await request(app.getHttpServer())
+      .get('/api/rooms')
+      .expect(200);
+    expect(getArrayBody(occupiedResponse)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          occupancy: 1,
+          roomCode: 'APT004',
+          status: 'waiting',
+        }),
+      ]),
+    );
+  });
+
   it('supports the complete Phase 2 session REST lifecycle', async () => {
     const createResponse = await request(app.getHttpServer())
       .post('/api/sessions')
@@ -131,6 +166,32 @@ describe('VietBridge backend (e2e)', () => {
     expect(getBody(closedJoinResponse).code).toBe('SESSION_CLOSED');
   });
 
+  it('enforces one Vietnamese and one English participant', async () => {
+    const createResponse = await request(app.getHttpServer())
+      .post('/api/sessions')
+      .send({ displayName: 'Duong', sourceLanguage: 'vi' })
+      .expect(201);
+    const created = getBody(createResponse);
+    const roomCode = getString(created, 'roomCode');
+
+    const conflictResponse = await request(app.getHttpServer())
+      .post(`/api/sessions/${roomCode}/join`)
+      .send({ displayName: 'Minh', sourceLanguage: 'vi' })
+      .expect(409);
+
+    expect(getBody(conflictResponse)).toEqual(
+      expect.objectContaining({
+        code: 'LANGUAGE_PAIR_CONFLICT',
+        statusCode: 409,
+      }),
+    );
+
+    await request(app.getHttpServer())
+      .post(`/api/sessions/${roomCode}/join`)
+      .send({ displayName: 'Alex', sourceLanguage: 'en' })
+      .expect(200);
+  });
+
   it('validates session input and returns the global error format', async () => {
     const response = await request(app.getHttpServer())
       .post('/api/sessions')
@@ -180,6 +241,14 @@ function getBody(response: Response): Record<string, unknown> {
   }
 
   return body as Record<string, unknown>;
+}
+
+function getArrayBody(response: Response): unknown[] {
+  const body = response.body as unknown;
+  if (!Array.isArray(body)) {
+    throw new Error('Expected the response body to be an array.');
+  }
+  return body;
 }
 
 function getString(body: Record<string, unknown>, key: string): string {

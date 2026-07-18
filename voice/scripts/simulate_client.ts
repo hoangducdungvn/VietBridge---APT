@@ -1,4 +1,4 @@
-// Simulate client streaming audio.chunk binary frames to P4 Ingestion Gateway (ws://localhost:8080)
+// Simulate client streaming audio.chunk binary frames to P4 Ingestion Gateway (ws://localhost:8081)
 // and receiving live STT partial/final results from STT Service (http://localhost:8001).
 
 import fs from 'fs';
@@ -7,7 +7,7 @@ import WebSocket from 'ws';
 import { encodeAudioFrame } from '../src/protocol/packetizer';
 import { PROTOCOL_VERSION } from '../src/protocol/types';
 
-const GATEWAY_URL = 'ws://localhost:8080';
+const GATEWAY_URL = process.env.MOCK_GATEWAY_URL || 'ws://localhost:8081';
 const WAV_PATH = path.resolve(process.cwd(), '../tests/sample_en.wav');
 
 function ts(): string {

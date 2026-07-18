@@ -1,6 +1,6 @@
 # VietBridge Backend API Specification
 
-This document is the source of truth for REST APIs that are implemented and runnable in the current backend.
+This document is the source of truth for REST and Socket.IO APIs that are implemented and runnable in the current backend.
 
 ## Mandatory API documentation rule
 
@@ -12,9 +12,10 @@ This document is the source of truth for REST APIs that are implemented and runn
 
 ## Current implementation scope
 
-- Completed through Phase 2 — Session & Participant.
-- Transport currently available: REST over HTTP.
-- Socket.IO, reconnect, turns, audio, STT, Translation, Context, and Messaging APIs are not implemented yet.
+- Completed through the MVP source-transcript vertical slice: room, realtime turn/audio ingestion, and remote STT orchestration.
+- Transports currently available: REST over HTTP and Socket.IO on the same backend origin.
+- Socket authentication, room membership, participant presence, concurrent participant audio segments, ordered PCM buffering, cleanup, FastAPI STT partial/final calls, and room broadcasting are implemented.
+- Translation, context, bilingual `message.final`, and production persistence are not implemented yet.
 - State is stored in memory and is lost whenever the backend process restarts.
 
 ## Base URL
@@ -25,7 +26,7 @@ Default local URL:
 http://localhost:3000
 ```
 
-The port is controlled by `PORT`. Postman examples use:
+The bind address is controlled by `HOST` (`127.0.0.1` by default) and the port by `PORT`. Postman examples use:
 
 ```text
 {{baseUrl}} = http://localhost:3000
@@ -39,7 +40,7 @@ The port is controlled by `PORT`. Postman examples use:
 - Unknown JSON body properties are rejected.
 - `displayName` is trimmed and must contain 1–80 characters.
 - Language codes are exactly `vi` or `en`.
-- Room codes use `APTxxx`, where each `x` is an uppercase letter or digit. Lowercase path input is normalized to uppercase.
+- The lobby always exposes five fixed room slots: `APT001` through `APT005`. Lowercase path input is normalized to uppercase.
 - Session IDs use `session_<uuid>`.
 
 ### Authentication
@@ -47,13 +48,19 @@ The port is controlled by `PORT`. Postman examples use:
 - Current REST endpoints do not require an `Authorization` header.
 - Create and join responses return an opaque participant `accessToken`.
 - A token is tied to its `sessionId` and `participantId`, expires after 15 minutes, and is revoked when the session ends.
-- Token verification will be used by the Socket.IO handshake in Phase 3; it is not yet exposed as a REST operation.
+- Socket.IO clients must send the token in `auth.accessToken`; invalid or expired tokens fail the handshake with `connect_error` code/message `INVALID_TOKEN`.
 - Access tokens must not be logged or committed.
 
 ### Rate limiting
 
 - `POST /api/sessions` and `POST /api/sessions/:roomCode/join` allow 20 requests per 60 seconds per client address and endpoint handler.
 - Exceeding the limit returns HTTP `429` with code `RATE_LIMIT_EXCEEDED`.
+
+### Browser origins
+
+- Development accepts the frontend on `localhost`, loopback, or private-LAN IPv4 addresses using port `5173` or `4173`.
+- Production accepts only the comma-separated origins explicitly configured in `CORS_ORIGIN`.
+- The same policy applies to REST and Socket.IO handshakes.
 
 ### Error response
 
@@ -77,7 +84,8 @@ All handled HTTP errors use this format:
 | Method | URI | Success | Description |
 |---|---|---:|---|
 | `GET` | `/health` | `200` | Check backend availability. |
-| `POST` | `/api/sessions` | `201` | Create a session and its host participant. |
+| `GET` | `/api/rooms` | `200` | List all five lobby slots and their real occupancy. |
+| `POST` | `/api/sessions` | `201` | Create a session and host in an empty lobby slot. |
 | `GET` | `/api/sessions/:roomCode` | `200` | Get current session and participant state. |
 | `POST` | `/api/sessions/:roomCode/join` | `200` | Join a guest as the second participant. |
 | `POST` | `/api/sessions/:sessionId/end` | `200` | End a session idempotently. |
@@ -105,7 +113,7 @@ No body or authentication is required.
 
 ## POST `/api/sessions`
 
-Creates a translation session and its host participant. The new session starts in `waiting` state.
+Creates a translation session and its host participant in an empty lobby slot. The new session starts in `waiting` state. Pass `roomCode` to create in a selected empty card; omit it to allocate the first empty slot.
 
 ### Request
 
@@ -117,6 +125,7 @@ Content-Type: application/json
 ```json
 {
   "displayName": "Duong",
+  "roomCode": "APT001",
   "sourceLanguage": "vi"
 }
 ```
@@ -127,7 +136,7 @@ Content-Type: application/json
 {
   "accessToken": "opaque-participant-token",
   "participantId": "participant_4c785513-9f3f-4df2-a6fb-475190aa5ce6",
-  "roomCode": "APT123",
+  "roomCode": "APT001",
   "sessionId": "session_cb6493e6-934a-41ce-a881-71e944bb192c",
   "status": "waiting"
 }
@@ -137,9 +146,49 @@ The host participant is stored with role `host`, connection status `offline`, an
 
 ### Errors
 
-- `400 VALIDATION_ERROR`: invalid/missing name, invalid language, or unknown body field.
+- `400 VALIDATION_ERROR`: invalid/missing name, unsupported room slot, invalid language, or unknown body field.
+- `409 ROOM_UNAVAILABLE`: the explicitly selected room is occupied.
+- `409 LOBBY_FULL`: all five room slots are occupied when no room was selected.
 - `429 RATE_LIMIT_EXCEEDED`: create limit exceeded.
-- `500 INTERNAL_ERROR`: a unique room code could not be allocated or an unexpected error occurred.
+
+## GET `/api/rooms`
+
+Returns exactly five lobby cards in stable order. Empty and closed slots have no participants. Waiting/full slots derive occupancy from the current in-memory session and never expose display names or access tokens.
+
+### Request
+
+```http
+GET {{baseUrl}}/api/rooms
+```
+
+### Success response — `200 OK`
+
+```json
+[
+  {
+    "occupancy": 1,
+    "participants": [
+      {
+        "connectionStatus": "online",
+        "participantId": "participant_4c785513-9f3f-4df2-a6fb-475190aa5ce6",
+        "sourceLanguage": "vi"
+      }
+    ],
+    "roomCode": "APT001",
+    "roomName": "Room 1",
+    "status": "waiting"
+  },
+  {
+    "occupancy": 0,
+    "participants": [],
+    "roomCode": "APT002",
+    "roomName": "Room 2",
+    "status": "empty"
+  }
+]
+```
+
+The actual response continues through `APT005`. `status` is `empty`, `waiting`, or `full`; `occupancy` is `0`, `1`, or `2`.
 
 ## GET `/api/sessions/:roomCode`
 
@@ -154,7 +203,7 @@ GET {{baseUrl}}/api/sessions/{{roomCode}}
 Example:
 
 ```http
-GET {{baseUrl}}/api/sessions/APT123
+GET {{baseUrl}}/api/sessions/APT001
 ```
 
 ### Success response — `200 OK`
@@ -172,7 +221,7 @@ GET {{baseUrl}}/api/sessions/APT123
       "targetLanguage": "en"
     }
   ],
-  "roomCode": "APT123",
+  "roomCode": "APT001",
   "sessionId": "session_cb6493e6-934a-41ce-a881-71e944bb192c",
   "status": "waiting"
 }
@@ -225,19 +274,22 @@ Content-Type: application/json
 - `404 SESSION_NOT_FOUND`: the room code is valid but not stored.
 - `409 SESSION_CLOSED`: the session is closing or closed.
 - `409 SESSION_FULL`: the session already contains two participants.
-- `409 LANGUAGE_PAIR_CONFLICT`: the guest source language matches the host source language.
+- `409 LANGUAGE_PAIR_CONFLICT`: the guest selected the same source language as the host.
 - `429 RATE_LIMIT_EXCEEDED`: join limit exceeded.
 
-### Current language-pair behavior
+### Language-pair behavior
 
 - Each participant receives the inverse target language automatically.
-- The implementation rejects a guest whose source language matches the host's source language with a `409 LANGUAGE_PAIR_CONFLICT` error to enforce exactly one `vi` participant and one `en` participant.
+- Host `vi` accepts only guest `en`; host `en` accepts only guest `vi`.
+- A conflict does not create a participant or change the session out of `waiting`.
 
 ## POST `/api/sessions/:sessionId/end`
 
-Ends an existing session and revokes all participant tokens belonging to it.
+Ends an existing session, revokes all participant tokens belonging to it, and purges its in-memory conversation data.
 
 The operation is idempotent: calling it again for an already closed session returns the same successful state.
+
+On the first successful end, the backend removes completed transcript text, active/buffered audio turns, recent turn IDs, partial-STT scheduling state, and glossary/context placeholders for that session. Participant identity and the closed session shell remain only for idempotency; the lobby slot becomes empty and reusable.
 
 ### Request
 
@@ -261,16 +313,125 @@ No body or authentication is currently required.
 - `400 VALIDATION_ERROR`: session ID format is invalid.
 - `404 SESSION_NOT_FOUND`: the session ID is valid but not stored.
 
+## Socket.IO realtime API
+
+Socket.IO uses the same origin as REST (`http://localhost:3000` by default). Connect with the opaque token returned by create/join:
+
+```ts
+io('http://localhost:3000', {
+  auth: { accessToken },
+  transports: ['websocket']
+});
+```
+
+An invalid, expired, or revoked token fails the handshake with `connect_error` and code/message `INVALID_TOKEN`. The token is never included in normal event payloads or logs.
+
+### Available server events
+
+- `session.state`: current session status and participant presence.
+- `participant.joined`: a participant socket became online.
+- `participant.left`: a participant socket became offline.
+- `turn.accepted`: this participant's audio segment was created.
+- `turn.rejected`: this participant's start request was invalid or duplicated.
+- `pipeline.error`: invalid identity, turn state, audio, or sequence.
+- `stt.partial`: a best-effort source transcript after roughly each 2 seconds of accumulated speech.
+- `stt.final`: the authoritative source transcript after a successful `turn.end`.
+
+Server JSON events follow the documented envelope with `type`, `sessionId`, optional participant/turn identifiers, `serverTimestamp`, and `payload`.
+
+### Client `turn.start`
+
+```json
+{
+  "type": "turn.start",
+  "eventId": "evt-start-1",
+  "sessionId": "session_...",
+  "participantId": "participant_...",
+  "payload": {
+    "audioConfig": {
+      "codec": "pcm_s16le",
+      "sampleRate": 16000,
+      "channels": 1
+    }
+  }
+}
+```
+
+There is no session-wide active-speaker lock and `TURN_BUSY` is not emitted. Host and guest may each stream an audio segment at the same time from separate devices. A participant may have only one segment in `started`/`streaming` state; a duplicate start from that same participant receives `turn.rejected` with `payload.code = PARTICIPANT_TURN_ACTIVE`. A previous segment already in final-STT processing does not block that participant from starting the next segment.
+
+### Client `audio.chunk`
+
+```ts
+socket.emit('audio.chunk', {
+  sessionId,
+  participantId,
+  turnId,
+  sequence: 0,
+  audio: pcm16Buffer
+});
+```
+
+- `audio` must be binary PCM signed 16-bit, 16 kHz, mono; Base64 and raw-audio logging are not used.
+- Sequence starts at `0` and must increase by exactly one.
+- Each chunk is limited to 64,000 bytes and each turn to approximately 25 seconds (800,000 PCM bytes).
+- Unknown turns, wrong ownership, invalid binary data, and out-of-order chunks emit `pipeline.error`.
+- A stream error fails only the owning participant's segment and clears its in-memory audio; the other participant's stream is unaffected.
+
+### Client `turn.end` and `turn.cancel`
+
+```json
+{
+  "type": "turn.end",
+  "eventId": "evt-end-1",
+  "sessionId": "session_...",
+  "participantId": "participant_...",
+  "turnId": "turn_...",
+  "payload": {}
+}
+```
+
+`turn.end` is idempotent: a duplicate does not emit another `stt.final`. End/final, cancel, and error paths clear that segment's buffered audio. Disconnecting a participant cancels and cleans all of that participant's open segments without touching the other participant.
+
+With `STT_PROVIDER=remote`, `turn.end` sends all accumulated raw PCM to `${STT_BASE_URL}/v1/transcribe` as multipart fields `file`, `utterance_id`, `language_hint`, and `is_final`. The language hint comes from the authenticated participant record, never from an audio event.
+
+### Server `stt.partial` and `stt.final`
+
+```json
+{
+  "type": "stt.final",
+  "sessionId": "session_...",
+  "turnId": "turn_...",
+  "serverTimestamp": 1784293000000,
+  "payload": {
+    "backend": "fpt",
+    "language": "vi",
+    "lowConfidence": false,
+    "participantId": "participant_...",
+    "providerLatencyMs": 918.4,
+    "text": "Xin chào"
+  }
+}
+```
+
+- Both events are broadcast to all connected participants in the session room.
+- Partial requests re-decode the accumulated turn audio and allow at most one request in flight per turn.
+- A final supersedes pending partial output. Provider failure emits `pipeline.error` with `STT_TIMEOUT`, `STT_PROVIDER_UNAVAILABLE`, or `STT_PROVIDER_ERROR` and cleans only the failed segment.
+- The backend never logs or persists raw audio or provider API keys.
+
 ## Recommended Postman flow
 
 1. Call `GET /health`.
-2. Call `POST /api/sessions` and store `roomCode`, `sessionId`, and the host `accessToken`.
-3. Call `GET /api/sessions/:roomCode` and verify `waiting` with one host.
-4. Call `POST /api/sessions/:roomCode/join` and store the guest `accessToken`.
-5. Call `GET /api/sessions/:roomCode` and verify `active` with two participants.
-6. Attempt a third join and verify `409 SESSION_FULL`.
-7. Call `POST /api/sessions/:sessionId/end` twice and verify both responses are `200 closed`.
-8. Attempt to join the closed room and verify `409 SESSION_CLOSED`.
+2. Call `GET /api/rooms` and verify `APT001`–`APT005` are returned.
+3. Call `POST /api/sessions` with an empty `roomCode`; store `sessionId` and the host `accessToken`.
+4. Call `GET /api/rooms` and verify that card is `waiting` with occupancy `1`.
+5. Attempt a join with the host language and verify `409 LANGUAGE_PAIR_CONFLICT`.
+6. Join with the opposite language and store the guest `accessToken`.
+7. Call `GET /api/rooms` and verify that card is `full` with occupancy `2`.
+8. Attempt a third join and verify `409 SESSION_FULL`.
+9. Call `POST /api/sessions/:sessionId/end` twice and verify both responses are `200 closed`.
+10. Call `GET /api/rooms` and verify the ended slot is empty and reusable.
+
+Use the frontend or the automated Socket.IO e2e suite for realtime events; Postman is sufficient for the REST flow.
 
 ## Change history
 
@@ -278,3 +439,11 @@ No body or authentication is currently required.
 |---|---|
 | Phase 1 | Added `GET /health`. |
 | Phase 2 | Added create, state, join, and end-session REST APIs. |
+| Language rule | Added `409 LANGUAGE_PAIR_CONFLICT` for equal host/guest source languages. |
+| Phase 3 | Added authenticated Socket.IO room membership and participant presence events. |
+| Phase 4 | Added turn lock, ordered PCM ingestion, cleanup, idempotent end, and mock `stt.final`. |
+| MVP STT | Added FastAPI multipart adapter, 2-second partial scheduling, real final STT, latency/error mapping, and room-wide source transcript events. |
+| LAN invite fix | Allowed development frontend origins on private LAN addresses so invite links work across two machines. |
+| Five-room lobby | Added fixed `APT001`–`APT005` slots, `GET /api/rooms`, selected-slot creation, real occupancy, and reusable ended slots. |
+| Meeting cleanup | End-session now purges all in-memory turn audio/transcript/partial state; the frontend clears visible transcript state immediately. |
+| Independent microphones | Removed the session-wide speaker lock and `TURN_BUSY`; both participants may stream and finish STT segments concurrently. |

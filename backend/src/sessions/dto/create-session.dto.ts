@@ -1,5 +1,12 @@
 import { Transform, type TransformFnParams } from 'class-transformer';
-import { IsIn, IsString, MaxLength, MinLength } from 'class-validator';
+import {
+  IsIn,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 import type { LanguageCode } from '../../common/types/language-code.type';
 
 export class CreateSessionDto {
@@ -8,6 +15,11 @@ export class CreateSessionDto {
   @MinLength(1)
   @MaxLength(80)
   displayName!: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^APT00[1-5]$/)
+  roomCode?: string;
 
   @IsIn(['vi', 'en'])
   sourceLanguage!: LanguageCode;

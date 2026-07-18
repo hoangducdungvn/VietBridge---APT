@@ -5,7 +5,12 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { decodeAudioFrame } from '../protocol/packetizer';
 import { PROTOCOL_VERSION } from '../protocol/types';
 
-const PORT = 8080;
+const DEFAULT_PORT = 8081;
+const configuredPort = Number.parseInt(process.env.MOCK_GATEWAY_PORT ?? '', 10);
+const PORT =
+  Number.isInteger(configuredPort) && configuredPort > 0 && configuredPort <= 65_535
+    ? configuredPort
+    : DEFAULT_PORT;
 
 // ---------------------------------------------------------------------------
 // ANSI color helpers

@@ -156,3 +156,29 @@ select,
 textarea {
   font: inherit;
 }
+
+.transcript-scrollbar {
+  scrollbar-color: rgb(30 58 95 / 45%) transparent;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.transcript-scrollbar::-webkit-scrollbar {
+  width: 0.55rem;
+}
+
+.transcript-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.transcript-scrollbar::-webkit-scrollbar-thumb {
+  border: 0.15rem solid transparent;
+  border-radius: 999px;
+  background: rgb(30 58 95 / 35%);
+  background-clip: padding-box;
+}
+
+.transcript-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgb(30 58 95 / 55%);
+  background-clip: padding-box;
+}

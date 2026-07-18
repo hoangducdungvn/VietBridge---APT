@@ -1,29 +1,31 @@
-import { Module, NotImplementedException } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { MockSttProvider } from './mock-stt.provider';
-import { STT_PROVIDER } from './stt.constants';
+import { MockSttTranscriptionProvider } from './mock-stt-transcription.provider';
+import { RemoteSttTranscriptionProvider } from './remote-stt-transcription.provider';
+import { STT_TRANSCRIPTION_PROVIDER } from './stt-transcription-provider.interface';
 
 @Module({
+  exports: [STT_TRANSCRIPTION_PROVIDER],
   providers: [
-    MockSttProvider,
+    MockSttTranscriptionProvider,
+    RemoteSttTranscriptionProvider,
     {
-      provide: STT_PROVIDER,
+      inject: [
+        ConfigService,
+        MockSttTranscriptionProvider,
+        RemoteSttTranscriptionProvider,
+      ],
+      provide: STT_TRANSCRIPTION_PROVIDER,
       useFactory: (
         configService: ConfigService,
-        mockProvider: MockSttProvider,
-      ) => {
-        const providerType =
-          configService.get<string>('STT_PROVIDER') ?? 'mock';
-        if (providerType === 'mock') {
-          return mockProvider;
-        }
-        throw new NotImplementedException(
-          `STT provider '${providerType}' is not implemented.`,
-        );
-      },
-      inject: [ConfigService, MockSttProvider],
+        mockProvider: MockSttTranscriptionProvider,
+        remoteProvider: RemoteSttTranscriptionProvider,
+      ) =>
+        configService.get<string>('NODE_ENV') === 'test' ||
+        configService.get<string>('STT_PROVIDER', 'mock') === 'mock'
+          ? mockProvider
+          : remoteProvider,
     },
   ],
-  exports: [STT_PROVIDER],
 })
 export class SttModule {}

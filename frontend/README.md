@@ -32,9 +32,12 @@ VietBridge is a browser-based PWA scaffold for real-time Vietnamese-English busi
 4. Reloading calls `GET /api/sessions/:roomCode` to restore current in-memory backend state.
 5. Waiting-room invite copy uses the Clipboard API when available and a click-driven fallback for HTTP LAN origins.
 6. Meeting audio waits for the authenticated Socket.IO connection, then requests microphone access automatically. The microphone button remains the retry/stop control.
-4. `SessionSocketClient` authenticates with `auth.accessToken` and listens for `session.state` so both browsers update presence.
-5. The meeting microphone uses VoicePipeline and the existing authenticated Socket.IO connection for `turn.start`, PCM `audio.chunk`, and `turn.end`.
-6. Backend STT partial/final results are rendered in both browsers. Translation is not implemented yet.
+7. The current participant's source-language transcript pane is highlighted in green and labeled `You`; the other participant remains neutral.
+8. Transcript history exists only for the current in-memory meeting and is cleared immediately on leave, remote close, or End Meeting.
+9. Each language pane owns a fixed transcript viewport with a visible scrollbar and automatically follows its latest finalized STT result.
+10. `SessionSocketClient` authenticates with `auth.accessToken` and listens for `session.state` so both browsers update presence.
+11. Each device keeps its own microphone capture active. VoicePipeline uses VAD only to segment local speech; backend accepts both participants concurrently without `TURN_BUSY`.
+12. Backend STT partial/final results are rendered in both browsers. Translation is not implemented yet.
 
 ## Adding A New Language Pair
 
@@ -66,15 +69,7 @@ Start `backend` on port `3000` before testing create/join in two browser windows
 
 ### Test from another machine on the same Wi-Fi
 
-Vite listens on the LAN by default. Find the host machine IPv4 address with `ipconfig`, then set only the local ignored `frontend/.env` public URL:
-
-```env
-VITE_PUBLIC_APP_URL=http://192.168.1.8:5173
-```
-
-Replace `192.168.1.8` with the current host IPv4 address and restart Vite after changing `.env`. Open that LAN URL on the host before creating a room. The copied invite includes the room code and required opposite language. Backend URLs configured as localhost are automatically rewritten to the page's LAN hostname in the recipient browser.
-
-Browser microphone APIs require a secure context. `http://localhost:5173` is accepted by browsers, but a second machine opening `http://<LAN-IP>:5173` may have microphone access blocked. For a two-machine voice test, serve the frontend through trusted HTTPS or explicitly allow that development origin in the test browser; the UI now reports this condition instead of showing a false active microphone.
+Use the trusted-HTTPS Vite gateway and same-origin backend proxy described in [`docs/deploy.md`](../docs/deploy.md). Plain `http://<LAN-IP>` is not a valid browser microphone context and must not be used for the two-device voice acceptance test.
 
 ## Useful Scripts
 

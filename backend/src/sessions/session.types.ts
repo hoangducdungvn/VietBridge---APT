@@ -12,22 +12,41 @@ export type SessionStatus =
   | 'error';
 
 export interface TranslationSession {
-  sessionId: string;
-  roomCode: string;
-  status: SessionStatus;
-  participantIds: string[];
   activeTurnId?: string;
-  recentTurnIds: string[];
-  glossary: Record<string, string>;
-  createdAt: number;
-  startedAt?: number;
-  lastActivityAt: number;
   closedAt?: number;
+  createdAt: number;
+  glossary: Record<string, string>;
+  lastActivityAt: number;
+  nextTurnSequence: number;
+  participantIds: string[];
+  recentTurnIds: string[];
+  roomCode: string;
+  sessionId: string;
+  startedAt?: number;
+  status: SessionStatus;
 }
 
 export interface SessionParticipantInput {
   displayName: string;
   sourceLanguage: LanguageCode;
+}
+
+export interface CreateSessionInput extends SessionParticipantInput {
+  roomCode?: string;
+}
+
+export interface LobbyRoomParticipant {
+  connectionStatus: ConnectionStatus;
+  participantId: string;
+  sourceLanguage: LanguageCode;
+}
+
+export interface LobbyRoomResponse {
+  occupancy: number;
+  participants: LobbyRoomParticipant[];
+  roomCode: string;
+  roomName: string;
+  status: 'empty' | 'waiting' | 'full';
 }
 
 export interface CreateSessionResponse {

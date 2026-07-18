@@ -6,9 +6,11 @@ export type ProviderMode = (typeof PROVIDER_MODES)[number];
 
 export interface EnvironmentVariables {
   CORS_ORIGIN: string;
+  HOST: string;
   LOG_TRANSCRIPTS: boolean;
   NODE_ENV: NodeEnvironment;
   PORT: number;
+  STT_BASE_URL: string;
   STT_FINAL_TIMEOUT_MS: number;
   STT_PROVIDER: ProviderMode;
   STT_START_TIMEOUT_MS: number;
@@ -22,7 +24,8 @@ export function validateEnvironment(
 ): Record<string, unknown> {
   return {
     ...environment,
-    CORS_ORIGIN: parseOrigin(environment.CORS_ORIGIN),
+    CORS_ORIGIN: parseOrigins(environment.CORS_ORIGIN),
+    HOST: parseNonEmptyString('HOST', environment.HOST, '127.0.0.1'),
     LOG_TRANSCRIPTS: parseBoolean(
       'LOG_TRANSCRIPTS',
       environment.LOG_TRANSCRIPTS,
@@ -35,6 +38,11 @@ export function validateEnvironment(
       'development',
     ),
     PORT: parseInteger('PORT', environment.PORT, 3000, 1, 65_535),
+    STT_BASE_URL: parseHttpUrl(
+      'STT_BASE_URL',
+      environment.STT_BASE_URL,
+      'http://localhost:8001',
+    ),
     STT_FINAL_TIMEOUT_MS: parseInteger(
       'STT_FINAL_TIMEOUT_MS',
       environment.STT_FINAL_TIMEOUT_MS,
@@ -74,6 +82,18 @@ export function validateEnvironment(
       120_000,
     ),
   } satisfies EnvironmentVariables & Record<string, unknown>;
+}
+
+function parseNonEmptyString(
+  name: string,
+  value: unknown,
+  defaultValue: string,
+): string {
+  const resolvedValue = value ?? defaultValue;
+  if (typeof resolvedValue !== 'string' || resolvedValue.trim() === '') {
+    throw new Error(`${name} must be a non-empty string.`);
+  }
+  return resolvedValue.trim();
 }
 
 function parseBoolean(
@@ -142,26 +162,51 @@ function parseInteger(
   return parsedValue;
 }
 
-function parseOrigin(value: unknown): string {
+function parseOrigins(value: unknown): string {
   const origin = value ?? 'http://localhost:5173';
 
   if (typeof origin !== 'string' || origin.trim() === '') {
-    throw new Error('CORS_ORIGIN must be a non-empty HTTP(S) origin.');
+    throw new Error('CORS_ORIGIN must contain at least one HTTP(S) origin.');
   }
 
+  const origins = origin.split(',').map((value) => value.trim());
+  for (const item of origins) {
+    try {
+      const parsedOrigin = new URL(item);
+      if (
+        parsedOrigin.protocol !== 'http:' &&
+        parsedOrigin.protocol !== 'https:'
+      ) {
+        throw new Error('Unsupported protocol.');
+      }
+    } catch {
+      throw new Error(
+        'CORS_ORIGIN must be a comma-separated list of valid HTTP(S) origins.',
+      );
+    }
+  }
+
+  return origins.join(',');
+}
+
+function parseHttpUrl(
+  name: string,
+  value: unknown,
+  defaultValue: string,
+): string {
+  const resolvedValue = value ?? defaultValue;
+  if (typeof resolvedValue !== 'string' || resolvedValue.trim() === '') {
+    throw new Error(`${name} must be a non-empty HTTP(S) URL.`);
+  }
   try {
-    const parsedOrigin = new URL(origin);
-    if (
-      parsedOrigin.protocol !== 'http:' &&
-      parsedOrigin.protocol !== 'https:'
-    ) {
+    const parsedUrl = new URL(resolvedValue);
+    if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
       throw new Error('Unsupported protocol.');
     }
   } catch {
-    throw new Error('CORS_ORIGIN must be a valid HTTP(S) origin.');
+    throw new Error(`${name} must be a valid HTTP(S) URL.`);
   }
-
-  return origin;
+  return resolvedValue.replace(/\/$/, '');
 }
 
 function parseUrl(

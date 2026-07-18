@@ -11,7 +11,8 @@ export class SessionStore {
 
     if (
       existingSessionId !== undefined &&
-      existingSessionId !== session.sessionId
+      existingSessionId !== session.sessionId &&
+      this.sessionsById.get(existingSessionId)?.status !== 'closed'
     ) {
       throw new Error('The room code is already assigned to another session.');
     }

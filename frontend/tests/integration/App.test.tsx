@@ -1,13 +1,24 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useRoomsStore } from '@application/store/useRoomsStore';
 import { useSessionStore } from '@application/store/useSessionStore';
 import type { ParticipantSession, SessionState } from '@domain/entities/BackendSession';
+import type { RealtimeSttResult } from '@infrastructure/websocket/SessionSocketClient';
 import App from '../../src/App';
+
+interface TestSocketHandlers {
+  onSttResult: (result: RealtimeSttResult) => void;
+}
+
+const socketHarness = vi.hoisted(() => ({
+  handlers: undefined as TestSocketHandlers | undefined
+}));
 
 vi.mock('@infrastructure/websocket/SessionSocketClient', () => ({
   SessionSocketClient: class {
-    connect() {}
+    connect(_session: unknown, handlers: TestSocketHandlers) {
+      socketHarness.handlers = handlers;
+    }
     disconnect() {}
   }
 }));
@@ -70,6 +81,7 @@ describe('backend-backed five-room lobby', () => {
     sessionStorage.clear();
     useSessionStore.setState({ activeSession: null, serverState: null });
     useRoomsStore.getState().resetRooms();
+    socketHarness.handlers = undefined;
     vi.restoreAllMocks();
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse(emptyLobby));
   });
@@ -154,7 +166,7 @@ describe('backend-backed five-room lobby', () => {
     expect(useSessionStore.getState().activeSession).toEqual(hostSession);
     expect(sessionStorage.getItem('vietbridge-active-session')).toContain('host-token');
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:3000/api/sessions',
+      expect.stringMatching(/\/api\/sessions$/),
       expect.objectContaining({
         body: expect.stringContaining('"roomCode":"APT001"'),
         method: 'POST'
@@ -217,6 +229,61 @@ describe('backend-backed five-room lobby', () => {
 
     await waitFor(() => expect(screen.getByText('Vietnamese-English meeting')).toBeInTheDocument());
     expect(useSessionStore.getState().serverState?.status).toBe('active');
+  });
+
+  it('clears the visible transcript immediately when the meeting ends', async () => {
+    const activeState: SessionState = {
+      ...waitingState,
+      participants: [
+        waitingState.participants[0],
+        {
+          connectionStatus: 'online',
+          displayName: 'Alex',
+          participantId: 'participant-guest',
+          role: 'guest',
+          sourceLanguage: 'en',
+          targetLanguage: 'vi'
+        }
+      ],
+      startedAt: 2,
+      status: 'active'
+    };
+    useSessionStore.setState({ activeSession: hostSession, serverState: activeState });
+    vi.mocked(globalThis.fetch).mockImplementation((input, init) => {
+      const url = String(input);
+      if (url.endsWith(`/api/sessions/${hostSession.sessionId}/end`) && init?.method === 'POST') {
+        return Promise.resolve(
+          jsonResponse({ sessionId: hostSession.sessionId, status: 'closed' })
+        );
+      }
+      if (url.endsWith('/api/sessions/APT001')) {
+        return Promise.resolve(jsonResponse(activeState));
+      }
+      return Promise.resolve(jsonResponse(emptyLobby));
+    });
+
+    render(<App />);
+    await screen.findByText('Vietnamese-English meeting');
+    await waitFor(() => expect(socketHarness.handlers).toBeDefined());
+    act(() => {
+      socketHarness.handlers?.onSttResult({
+        backend: 'fpt',
+        language: 'vi',
+        participantId: hostSession.participantId,
+        providerLatencyMs: 120,
+        receivedAt: Date.now(),
+        text: 'Đây là lịch sử cuộc họp cũ',
+        turnId: 'turn-old',
+        type: 'final'
+      });
+    });
+    expect(screen.getByText('Đây là lịch sử cuộc họp cũ')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'End Meeting' }));
+    fireEvent.click(screen.getByRole('button', { name: 'End now' }));
+
+    expect(await screen.findByRole('heading', { name: 'Choose a room' })).toBeInTheDocument();
+    expect(screen.queryByText('Đây là lịch sử cuộc họp cũ')).not.toBeInTheDocument();
   });
 });
 

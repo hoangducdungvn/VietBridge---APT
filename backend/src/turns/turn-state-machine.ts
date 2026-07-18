@@ -2,10 +2,8 @@ import { TurnStatus } from './turn.types';
 
 export const TURN_TRANSITIONS: Readonly<Record<TurnStatus, readonly TurnStatus[]>> = {
   started: ['streaming', 'failed', 'cancelled'],
-  streaming: ['speech_ended', 'failed', 'cancelled'],
-  speech_ended: ['stt_final', 'failed'],
-  stt_final: ['translating', 'failed'],
-  translating: ['completed', 'failed'],
+  streaming: ['processing', 'failed', 'cancelled'],
+  processing: ['completed', 'failed'],
   completed: [],
   failed: [],
   cancelled: [],

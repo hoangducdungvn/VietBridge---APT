@@ -27,20 +27,47 @@ export class ParticipantsService {
     return participant;
   }
 
+  getRequiredParticipant(participantId: string): Participant {
+    const participant = this.participantStore.findById(participantId);
+
+    if (participant === undefined) {
+      throw new ApiHttpException(
+        HttpStatus.NOT_FOUND,
+        'PARTICIPANT_NOT_FOUND',
+        'The participant was not found.',
+      );
+    }
+
+    return participant;
+  }
+
   getRequiredParticipants(participantIds: readonly string[]): Participant[] {
-    return participantIds.map((participantId) => {
-      const participant = this.participantStore.findById(participantId);
+    return participantIds.map((participantId) =>
+      this.getRequiredParticipant(participantId),
+    );
+  }
 
-      if (participant === undefined) {
-        throw new ApiHttpException(
-          HttpStatus.NOT_FOUND,
-          'PARTICIPANT_NOT_FOUND',
-          'The participant was not found.',
-        );
-      }
+  markOnline(participantId: string, socketId: string): Participant {
+    const participant = this.getRequiredParticipant(participantId);
+    participant.connectionStatus = 'online';
+    participant.lastSeenAt = Date.now();
+    participant.socketId = socketId;
+    this.participantStore.save(participant);
+    return participant;
+  }
 
-      return participant;
-    });
+  markOfflineBySocketId(socketId: string): Participant | undefined {
+    const participant = this.participantStore.findBySocketId(socketId);
+
+    if (participant === undefined || participant.socketId !== socketId) {
+      return undefined;
+    }
+
+    participant.connectionStatus = 'offline';
+    participant.lastSeenAt = Date.now();
+    delete participant.socketId;
+    this.participantStore.save(participant);
+    return participant;
   }
 }
 

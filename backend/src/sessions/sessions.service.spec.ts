@@ -47,19 +47,45 @@ describe('SessionsService', () => {
     ]);
   });
 
-  it('generates a unique room code for every stored session', () => {
-    const roomCodes = new Set(
-      Array.from(
-        { length: 50 },
-        (_, index) =>
-          service.createSession({
-            displayName: `Host ${index}`,
-            sourceLanguage: 'vi',
-          }).roomCode,
-      ),
+  it('always exposes five rooms and allocates each slot once', () => {
+    expect(service.getLobbyRooms()).toEqual([
+      expect.objectContaining({ roomCode: 'APT001', status: 'empty' }),
+      expect.objectContaining({ roomCode: 'APT002', status: 'empty' }),
+      expect.objectContaining({ roomCode: 'APT003', status: 'empty' }),
+      expect.objectContaining({ roomCode: 'APT004', status: 'empty' }),
+      expect.objectContaining({ roomCode: 'APT005', status: 'empty' }),
+    ]);
+
+    const sessions = Array.from({ length: 5 }, (_, index) =>
+      service.createSession({
+        displayName: `Host ${index}`,
+        sourceLanguage: 'vi',
+      }),
+    );
+    expect(sessions.map((session) => session.roomCode)).toEqual([
+      'APT001',
+      'APT002',
+      'APT003',
+      'APT004',
+      'APT005',
+    ]);
+    expectApiError(
+      () =>
+        service.createSession({
+          displayName: 'Sixth host',
+          sourceLanguage: 'vi',
+        }),
+      'LOBBY_FULL',
     );
 
-    expect(roomCodes.size).toBe(50);
+    service.endSession(sessions[2].sessionId);
+    expect(
+      service.createSession({
+        displayName: 'Replacement host',
+        roomCode: 'APT003',
+        sourceLanguage: 'en',
+      }).roomCode,
+    ).toBe('APT003');
   });
 
   it('joins a second participant and activates the session', () => {
@@ -84,6 +110,40 @@ describe('SessionsService', () => {
         targetLanguage: 'vi',
       }),
     );
+  });
+
+  it('rejects a guest using the same source language as the host', () => {
+    const created = service.createSession({
+      displayName: 'Duong',
+      sourceLanguage: 'vi',
+    });
+
+    expectApiError(
+      () =>
+        service.joinSession(created.roomCode, {
+          displayName: 'Same language guest',
+          sourceLanguage: 'vi',
+        }),
+      'LANGUAGE_PAIR_CONFLICT',
+    );
+
+    expect(service.getSession(created.roomCode).participants).toHaveLength(1);
+  });
+
+  it('supports the reverse English host and Vietnamese guest pair', () => {
+    const created = service.createSession({
+      displayName: 'Alex',
+      sourceLanguage: 'en',
+    });
+    service.joinSession(created.roomCode, {
+      displayName: 'Duong',
+      sourceLanguage: 'vi',
+    });
+
+    expect(service.getSession(created.roomCode).participants).toEqual([
+      expect.objectContaining({ role: 'host', sourceLanguage: 'en' }),
+      expect.objectContaining({ role: 'guest', sourceLanguage: 'vi' }),
+    ]);
   });
 
   it('rejects a third participant', () => {

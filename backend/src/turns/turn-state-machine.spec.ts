@@ -5,10 +5,8 @@ describe('turn-state-machine', () => {
   it('exposes the valid turn transitions', () => {
     expect(TURN_TRANSITIONS).toEqual({
       started: ['streaming', 'failed', 'cancelled'],
-      streaming: ['speech_ended', 'failed', 'cancelled'],
-      speech_ended: ['stt_final', 'failed'],
-      stt_final: ['translating', 'failed'],
-      translating: ['completed', 'failed'],
+      streaming: ['processing', 'failed', 'cancelled'],
+      processing: ['completed', 'failed'],
       completed: [],
       failed: [],
       cancelled: [],
@@ -18,15 +16,11 @@ describe('turn-state-machine', () => {
   it('returns true and does not throw for all valid transitions', () => {
     const validTransitions: Array<[TurnStatus, TurnStatus]> = [
       ['started', 'streaming'],
-      ['streaming', 'speech_ended'],
-      ['speech_ended', 'stt_final'],
-      ['stt_final', 'translating'],
-      ['translating', 'completed'],
+      ['streaming', 'processing'],
+      ['processing', 'completed'],
       ['started', 'failed'],
       ['streaming', 'failed'],
-      ['speech_ended', 'failed'],
-      ['stt_final', 'failed'],
-      ['translating', 'failed'],
+      ['processing', 'failed'],
       ['started', 'cancelled'],
       ['streaming', 'cancelled'],
     ];
@@ -41,7 +35,7 @@ describe('turn-state-machine', () => {
     const invalidTransitions: Array<[TurnStatus, TurnStatus]> = [
       ['completed', 'started'],
       ['failed', 'streaming'],
-      ['cancelled', 'translating'],
+      ['cancelled', 'processing'],
     ];
 
     for (const [from, to] of invalidTransitions) {

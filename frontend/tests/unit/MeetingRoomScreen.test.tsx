@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import type { Socket } from 'socket.io-client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ParticipantSession } from '@domain/entities/BackendSession';
+import type { RealtimeSttResult } from '@infrastructure/websocket/SessionSocketClient';
 import { MeetingRoomScreen } from '@presentation/views/MeetingRoomScreen';
 
 const voiceMocks = vi.hoisted(() => ({
@@ -33,11 +34,17 @@ const activeSession: ParticipantSession = {
 };
 
 const connectedSocket = { connected: true } as Socket;
+const scrollToMock = vi.fn();
 
 describe('MeetingRoomScreen microphone startup', () => {
   beforeEach(() => {
     voiceMocks.start.mockReset().mockResolvedValue(undefined);
     voiceMocks.stop.mockReset().mockResolvedValue(undefined);
+    scrollToMock.mockReset();
+    Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
+      configurable: true,
+      value: scrollToMock
+    });
   });
 
   it('starts the microphone automatically after Socket.IO connects', async () => {
@@ -46,6 +53,54 @@ describe('MeetingRoomScreen microphone startup', () => {
     await waitFor(() => expect(voiceMocks.start).toHaveBeenCalledTimes(1));
     expect(await screen.findByRole('button', { name: 'Stop microphone' })).toBeEnabled();
     expect(screen.getByText('Connected')).toBeInTheDocument();
+  });
+
+  it('marks the local source-language transcript pane in green', () => {
+    renderMeeting(undefined, 'connecting');
+
+    const localPane = screen.getByRole('region', { name: 'Vietnamese transcript' });
+    const remotePane = screen.getByRole('region', { name: 'English transcript' });
+    expect(localPane).toHaveAttribute('data-local-source', 'true');
+    expect(localPane).toHaveClass('ring-meeting-live/55');
+    expect(localPane).toHaveTextContent('You');
+    expect(localPane).toHaveTextContent('Your source language');
+    expect(remotePane).toHaveAttribute('data-local-source', 'false');
+    expect(remotePane).not.toHaveClass('ring-meeting-live/55');
+  });
+
+  it('gives each transcript an independent scrollbar and follows new final text', () => {
+    const firstResult: RealtimeSttResult = {
+      backend: 'fpt',
+      language: 'vi',
+      participantId: activeSession.participantId,
+      providerLatencyMs: 100,
+      receivedAt: Date.now(),
+      text: 'Câu đầu tiên',
+      turnId: 'turn-1',
+      type: 'final'
+    };
+    const view = renderMeeting(undefined, 'connecting', [firstResult]);
+
+    const vietnameseHistory = screen.getByLabelText('Vietnamese transcript history');
+    const englishHistory = screen.getByLabelText('English transcript history');
+    expect(vietnameseHistory).toHaveClass('overflow-y-auto', 'transcript-scrollbar');
+    expect(englishHistory).toHaveClass('overflow-y-auto', 'transcript-scrollbar');
+    expect(scrollToMock).toHaveBeenCalledWith({ behavior: 'smooth', top: 0 });
+
+    view.rerender(
+      <MeetingRoomScreen
+        activeSession={activeSession}
+        realtimeStatus="connecting"
+        roomName="Room APT001"
+        localLanguage="vi"
+        otherLanguage="en"
+        sttResults={[firstResult, { ...firstResult, text: 'Câu mới nhất', turnId: 'turn-2' }]}
+        onEndMeeting={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('Câu mới nhất')).toBeInTheDocument();
+    expect(scrollToMock).toHaveBeenCalledWith({ behavior: 'smooth', top: 0 });
   });
 
   it('waits for Socket.IO instead of failing microphone startup', async () => {
@@ -78,7 +133,11 @@ describe('MeetingRoomScreen microphone startup', () => {
   });
 });
 
-function renderMeeting(roomSocket: Socket | undefined, realtimeStatus: 'connecting' | 'connected') {
+function renderMeeting(
+  roomSocket: Socket | undefined,
+  realtimeStatus: 'connecting' | 'connected',
+  sttResults: RealtimeSttResult[] = []
+) {
   return render(
     <MeetingRoomScreen
       activeSession={activeSession}
@@ -87,7 +146,7 @@ function renderMeeting(roomSocket: Socket | undefined, realtimeStatus: 'connecti
       roomName="Room APT001"
       localLanguage="vi"
       otherLanguage="en"
-      sttResults={[]}
+      sttResults={sttResults}
       onEndMeeting={vi.fn()}
     />
   );

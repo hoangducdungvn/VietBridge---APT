@@ -7,7 +7,7 @@
 //     handles the 48→16 kHz conversion instead of our JS implementation,
 //     removing the CPU hot-path on low-end devices.
 
-import { Resampler, type AudioQuality } from './resampler';
+import { Resampler, type AudioQuality } from "./resampler";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -31,10 +31,10 @@ export interface AudioFrame {
 
 /** Observable device state transitions. */
 export type DeviceState =
-  | { type: 'active'; deviceLabel: string }
-  | { type: 'permission_denied' }
-  | { type: 'disconnected' }
-  | { type: 'error'; message: string };
+  | { type: "active"; deviceLabel: string }
+  | { type: "permission_denied" }
+  | { type: "disconnected" }
+  | { type: "error"; message: string };
 
 /** Configuration for starting a capture session. */
 export interface CaptureConfig {
@@ -94,6 +94,13 @@ export class WebAudioCaptureAdapter {
    */
   async start(config?: CaptureConfig): Promise<void> {
     // ---- 1. getUserMedia ----
+    if (typeof navigator.mediaDevices?.getUserMedia !== "function") {
+      const message =
+        "Microphone access requires HTTPS or localhost. This browser does not allow it on the current origin.";
+      this.deviceHandler?.({ type: "error", message });
+      throw new Error(message);
+    }
+
     const constraints: MediaStreamConstraints = {
       audio: {
         channelCount: 1,
@@ -107,19 +114,22 @@ export class WebAudioCaptureAdapter {
     try {
       this.stream = await navigator.mediaDevices.getUserMedia(constraints);
     } catch (err: unknown) {
-      if (err instanceof DOMException && err.name === 'NotAllowedError') {
-        this.deviceHandler?.({ type: 'permission_denied' });
-        return;
+      if (err instanceof DOMException && err.name === "NotAllowedError") {
+        this.deviceHandler?.({ type: "permission_denied" });
+        throw err;
       }
       const message = err instanceof Error ? err.message : String(err);
-      this.deviceHandler?.({ type: 'error', message });
-      return;
+      this.deviceHandler?.({ type: "error", message });
+      throw err;
     }
 
     // ---- 2. Verify actual MediaTrackSettings (doc §17 note) ----
     const track = this.stream.getAudioTracks()[0];
     if (!track) {
-      this.deviceHandler?.({ type: 'error', message: 'No audio track available' });
+      this.deviceHandler?.({
+        type: "error",
+        message: "No audio track available",
+      });
       this.releaseStream();
       return;
     }
@@ -130,7 +140,7 @@ export class WebAudioCaptureAdapter {
     if (settings.channelCount && settings.channelCount !== 1) {
       console.warn(
         `[CaptureAdapter] Expected 1 channel, got ${settings.channelCount}. ` +
-        'Proceeding with first channel only.',
+          "Proceeding with first channel only.",
       );
     }
 
@@ -142,9 +152,12 @@ export class WebAudioCaptureAdapter {
     this.context = new AudioContext({ sampleRate: 16000 });
     const inputSampleRate = this.context.sampleRate;
 
-    await this.context.audioWorklet.addModule('/worklet/pcm-processor.js');
+    await this.context.audioWorklet.addModule("/worklet/pcm-processor.js");
 
-    this.workletNode = new AudioWorkletNode(this.context, 'pcm-capture-processor');
+    this.workletNode = new AudioWorkletNode(
+      this.context,
+      "pcm-capture-processor",
+    );
     this.sourceNode = this.context.createMediaStreamSource(this.stream);
     this.sourceNode.connect(this.workletNode);
     // Do NOT connect the worklet to context.destination — we only need the
@@ -191,38 +204,56 @@ export class WebAudioCaptureAdapter {
     // ---- 7. Device-change listener ----
     this.boundOnDeviceChange = () => {
       // Re-check whether our track is still live after a device change.
-      if (track.readyState === 'ended') {
-        this.deviceHandler?.({ type: 'disconnected' });
+      if (track.readyState === "ended") {
+        this.deviceHandler?.({ type: "disconnected" });
       }
     };
-    navigator.mediaDevices.addEventListener('devicechange', this.boundOnDeviceChange);
+    navigator.mediaDevices.addEventListener(
+      "devicechange",
+      this.boundOnDeviceChange,
+    );
 
     // ---- 8. Track-ended listener ----
     this.boundOnTrackEnded = () => {
-      this.deviceHandler?.({ type: 'disconnected' });
+      this.deviceHandler?.({ type: "disconnected" });
     };
-    track.addEventListener('ended', this.boundOnTrackEnded);
+    track.addEventListener("ended", this.boundOnTrackEnded);
 
     // ---- R1: visibilitychange — Safari/iOS AudioContext suspend fix ----
     // Safari suspends the AudioContext whenever the page loses focus (tab
     // switch, lock screen, home button).  We resume it as soon as the page
     // becomes visible again so recording continues without interruption.
     this.boundOnVisibilityChange = async () => {
-      if (document.visibilityState === 'visible' && this.context?.state === 'suspended') {
+      if (
+        document.visibilityState === "visible" &&
+        this.context?.state === "suspended"
+      ) {
         try {
           await this.context.resume();
-          console.info('[CaptureAdapter] AudioContext resumed after visibility change (Safari fix)');
+          console.info(
+            "[CaptureAdapter] AudioContext resumed after visibility change (Safari fix)",
+          );
         } catch (e) {
-          console.warn('[CaptureAdapter] Failed to resume AudioContext:', e);
+          console.warn("[CaptureAdapter] Failed to resume AudioContext:", e);
         }
       }
     };
-    document.addEventListener('visibilitychange', this.boundOnVisibilityChange);
+    document.addEventListener("visibilitychange", this.boundOnVisibilityChange);
+
+    if (this.context.state === "suspended") {
+      await this.context.resume();
+    }
+    if (this.context.state === "suspended") {
+      const message =
+        "Browser blocked automatic microphone activation. Click the microphone button.";
+      this.deviceHandler?.({ type: "error", message });
+      throw new Error(message);
+    }
 
     // ---- 9. Emit active state ----
     this.deviceHandler?.({
-      type: 'active',
-      deviceLabel: track.label || 'Unknown microphone',
+      type: "active",
+      deviceLabel: track.label || "Unknown microphone",
     });
   }
 
@@ -258,13 +289,19 @@ export class WebAudioCaptureAdapter {
 
     // Remove global listeners
     if (this.boundOnDeviceChange) {
-      navigator.mediaDevices.removeEventListener('devicechange', this.boundOnDeviceChange);
+      navigator.mediaDevices.removeEventListener(
+        "devicechange",
+        this.boundOnDeviceChange,
+      );
       this.boundOnDeviceChange = null;
     }
     this.boundOnTrackEnded = null;
     // R1: Remove visibilitychange listener
     if (this.boundOnVisibilityChange) {
-      document.removeEventListener('visibilitychange', this.boundOnVisibilityChange);
+      document.removeEventListener(
+        "visibilitychange",
+        this.boundOnVisibilityChange,
+      );
       this.boundOnVisibilityChange = null;
     }
 
@@ -282,7 +319,7 @@ export class WebAudioCaptureAdapter {
   /** List available audio input devices. */
   static async listDevices(): Promise<MediaDeviceInfo[]> {
     const devices = await navigator.mediaDevices.enumerateDevices();
-    return devices.filter((d) => d.kind === 'audioinput');
+    return devices.filter((d) => d.kind === "audioinput");
   }
 
   // -------------------------------------------------------------------------
@@ -293,7 +330,10 @@ export class WebAudioCaptureAdapter {
   private releaseStream(): void {
     if (this.stream) {
       for (const track of this.stream.getTracks()) {
-        track.removeEventListener('ended', this.boundOnTrackEnded as EventListener);
+        track.removeEventListener(
+          "ended",
+          this.boundOnTrackEnded as EventListener,
+        );
         track.stop();
       }
       this.stream = null;
