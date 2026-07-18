@@ -60,11 +60,11 @@ export interface VadEvent {
 const DEFAULT_CONFIG: VadConfig = {
   frameDurationMs: 20,
   speechStartThreshold: 0.70,   // default (noisy-safe); Studio Mode passes 0.65 (quiet room assumed)
-  speechEndThreshold: 0.28,     // lowered 0.35→0.28: cut speech more aggressively when quiet
+  speechEndThreshold: 0.22,     // tolerate soft syllables and room noise dips before ending
   minSpeechMs: 150,             // raised 120→150ms: filters mic pops and single clicks
   preRollMs: 400,               // raised 200→400ms: keep breath intake + leading consonants ("H" in "Hello")
-  endSilenceMs: 600,            // raised 450→600ms: back to contract §13 — mid-sentence pauses no longer cut
-  maxUtteranceMs: 20_000,       // lowered 25s→20s: gives 10s buffer before Whisper 30s limit
+  endSilenceMs: 1000,           // balance natural pauses without making final results feel late
+  maxUtteranceMs: 25_000,       // still below Whisper's 30s practical limit
   backend: 'energy',  // R2: energy by default; loadSilero() switches to 'silero' on success
 };
 

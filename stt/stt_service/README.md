@@ -55,12 +55,15 @@ from stt_service import transcribe
 result = transcribe(utterance_id, audio, language_hint, is_final)
 # audio: np.float32 mono 16 kHz trong [-1,1] — TOÀN BỘ audio tích lũy của utterance
 # -> {utterance_id, type: "partial"|"final", text, language,
-#     asr_latency_ms, low_confidence}
+#     asr_latency_ms, low_confidence, eou}
 #    + continuation_id (nếu truyền vào, forward nguyên vẹn)
 #    + network_ms (backend fpt), + error {code, message, status} khi API lỗi
 ```
 
 - Audio im lặng/năng lượng quá thấp → text rỗng, không gọi API (guard hallucination).
+- `eou` là metadata End Of Utterance phía STT (`is_endpoint`, `reason`, `speech_ms`,
+  `trailing_silence_ms`, `duration_ms`). Client VAD vẫn là nguồn EOU chính; field này là
+  tín hiệu dự phòng/advisory cho backend hoặc gateway.
 - `language_hint` là prior; chỉ bị override khi backend detect ngôn ngữ khác với confidence ≥ 0.8 (hiện chỉ backend Groq báo confidence).
 - Lỗi API (timeout/4xx/5xx/rate-limit) trả về trong `error`, worker không crash.
 

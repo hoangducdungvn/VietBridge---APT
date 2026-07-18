@@ -274,7 +274,7 @@ export function MeetingRoomScreen({
     setIsMicStarting(true);
     const pipeline = new VoicePipeline(
       {
-        enableSileroVad: false,
+        enableSileroVad: true,
         gatewayUrl: env.backendWsUrl,
         languageHint: activeSession.sourceLanguage,
         participantId: activeSession.participantId,
