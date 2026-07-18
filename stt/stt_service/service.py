@@ -147,6 +147,7 @@ def _normalize_audio(audio: np.ndarray) -> np.ndarray:
 _HALLUCINATION_PATTERNS = [
     # Vietnamese closing phrases
     "cảm ơn các bạn đã theo dõi",
+    "cảm ơn quý vị đã theo dõi",
     "cảm ơn bạn đã xem",
     "đừng quên đăng ký",
     "đăng ký kênh",
@@ -163,6 +164,7 @@ _HALLUCINATION_PATTERNS = [
     "like and subscribe",
     "don't forget to subscribe",
     "see you next time",
+    "leave a comment",
     "hit the subscribe",
     "click the bell",
     "subtitles by",
@@ -172,9 +174,6 @@ _HALLUCINATION_PATTERNS = [
     "e aí",           # Brazilian Portuguese filler
     "merci",          # French filler
     "gracias",        # Spanish filler
-    # Generic filler
-    "...",
-    ". . .",
 ]
 
 # Standalone exact-match phrases (entire text, stripped) — too short to be real speech
@@ -186,6 +185,9 @@ _HALLUCINATION_EXACT = {
     "hmm.", "hmm",
     "yes.", "yes",
     "no.",
+    # Ellipsis-only output on dead air. EXACT match on purpose — as a substring
+    # pattern this used to blank any legit sentence containing "..." mid-text.
+    "...", ". . .",
 }
 
 # Single keywords that NEVER appear in real conversation but always in Whisper hallucinations.
@@ -236,7 +238,7 @@ def _is_repetitive_hallucination(text: str) -> bool:
     return False
 
 
-def _is_hallucination(text: str, result) -> bool:
+def _is_hallucination(text: str, result, speech_ratio: Optional[float] = None) -> bool:
     """Detect Whisper hallucinations using three signals:
     1. Exact-phrase blocklist match (substrings).
     2. Standalone exact-match for very short filler words.
@@ -266,7 +268,10 @@ def _is_hallucination(text: str, result) -> bool:
             return True
 
     # Signal 4: repeated filler loop (e.g. "Đấy. Đấy. Đấy..." on silence).
-    if _is_repetitive_hallucination(text):
+    # Only trusted when the audio was mostly NON-speech: a speaker genuinely
+    # repeating a sentence produces the same text pattern as a Whisper loop,
+    # but with real speech energy throughout — blanking that loses a good final.
+    if (speech_ratio is None or speech_ratio < 0.5) and _is_repetitive_hallucination(text):
         return True
 
     return False
@@ -344,7 +349,12 @@ def transcribe(
     # Trim dead-air from the end to prevent Whisper hallucinations on trailing
     # noise (runs on normalized audio — same scale as the gate thresholds).
     decode_audio = _trim_trailing_silence(decode_audio)
-    out["eou"] = detect_eou(decode_audio, is_final=is_final).to_dict()
+    # Frame-level speech stats; also reused to gate the repetition filter below
+    # (is_final=True short-circuits with speech_ms=duration, useless as a ratio).
+    _speech_probe = detect_eou(decode_audio, is_final=False)
+    out["eou"] = (
+        detect_eou(decode_audio, is_final=True).to_dict() if is_final else _speech_probe.to_dict()
+    )
 
     if _is_silence(decode_audio):
         # Hallucination guard: whisper invents text on silence — skip the API.
@@ -417,7 +427,12 @@ def transcribe(
 
     # Hallucination guard (post-decode): Whisper emits ghost phrases on silence/noise.
     # Suppress the text and mark low_confidence so the caller can handle it gracefully.
-    if _is_hallucination(out["text"], result):
+    speech_ratio = (
+        _speech_probe.speech_ms / _speech_probe.duration_ms
+        if config.EOU_ENABLED and _speech_probe.duration_ms > 0
+        else None
+    )
+    if _is_hallucination(out["text"], result, speech_ratio=speech_ratio):
         logger.warning(
             "utt=%s %s [%s]: hallucination suppressed %r",
             utterance_id, out["type"], backend_name, out["text"][:60],

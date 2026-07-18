@@ -97,3 +97,24 @@ Hành vi thực tế đã đo:
 
 Kết luận: **nhịp partial 1s KHÔNG khả thi** (p95 xấu nhất ~2.9s, jitter mạng lớn).
 Khuyến nghị: giãn nhịp partial lên **2s** và/hoặc chỉ re-decode ~15s audio cuối.
+
+## Chạy service & turn-protocol WebSocket (`/ws`)
+
+Đây là service STT **duy nhất** (thư mục `stt-service/` cũ đã được hợp nhất vào đây).
+
+```bash
+cd stt
+python -m uvicorn stt_service.server:app --port 8001 --host 127.0.0.1
+```
+
+Endpoint cho Node gateway (`voice/src/mock-server/server.ts`, env `STT_WS_URL`,
+mặc định `ws://localhost:8001/ws`):
+
+- Client → server: JSON `{"type":"start_turn","turnId","language","cadence_ms"}` /
+  `{"type":"finish_turn","turnId"}`; binary = raw PCM_S16LE 16kHz mono.
+- Server → client: `stt.partial` (theo `cadence_ms`, mặc định từ `PARTIAL_CADENCE_MS`
+  bên gateway), `stt.final`, `stt.error` — kèm `low_confidence` và `eou` metadata.
+- Gateway tự reconnect + replay toàn bộ turn khi socket đứt — service luôn có thể
+  coi socket mới là trạng thái sạch.
+
+Endpoint HTTP `/v1/transcribe` (multipart) vẫn giữ nguyên cho `benchmark.py` và tooling cũ.

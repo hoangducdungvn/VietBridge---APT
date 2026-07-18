@@ -9,7 +9,6 @@ import { translate, normalizeLang, TranslationError } from '../../../translation
 import { readFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { Blob } from 'buffer';
 
 // Load .env from project root
 // server.ts lives at: voice/src/mock-server/server.ts
@@ -143,6 +142,10 @@ function uuid(): string {
 // ---------------------------------------------------------------------------
 interface ActiveUtterance {
   id: string;
+  /** Full utterance audio. The live copy streams to the STT WS as it arrives;
+   *  this buffer is the authoritative replay source when the STT socket was
+   *  not yet open at utterance.start or dropped mid-turn (Python loses its
+   *  buffer on disconnect, so a reconnect must resend start_turn + audio). */
   pcmChunks: Int16Array[];
   langHint: string;
   lastPartialMs: number;
@@ -167,6 +170,11 @@ interface SessionState {
   activeUtterance: ActiveUtterance | null;
   translationContext: { sourceText: string; translatedText: string }[];
   sttWs: WebSocket | null;
+  /** utterance.end arrived while the STT socket was down — replay start_turn +
+   *  audio + finish_turn once it reconnects so the final is not lost. */
+  pendingFinal: ActiveUtterance | null;
+  sttBackoffMs: number;
+  clientClosed: boolean;
 }
 
 function createSessionState(): SessionState {
@@ -184,6 +192,9 @@ function createSessionState(): SessionState {
     activeUtterance: null,
     translationContext: [],
     sttWs: null,
+    pendingFinal: null,
+    sttBackoffMs: 500,
+    clientClosed: false,
   };
 }
 
@@ -209,65 +220,8 @@ wss.on('connection', (ws: WebSocket) => {
 
   log('[CONNECT]', `${C.bgBlue}${C.bold}${C.white}`, '', 'New client connected');
 
-  // Establish persistent connection to STT WS backend
-  const sttUrl = process.env.STT_WS_URL || 'ws://localhost:8001/ws';
-  state.sttWs = new WebSocket(sttUrl);
-  
-  state.sttWs.on('open', () => {
-    log('[STT]', C.green, state.sourceId, 'Connected to STT WebSocket');
-  });
-
-  state.sttWs.on('message', (data: Buffer) => {
-    try {
-      const msg = JSON.parse(data.toString());
-      if (msg.type === 'stt.partial' || msg.type === 'stt.final') {
-        const isFinal = msg.type === 'stt.final';
-        const tag = isFinal ? 'FINAL' : 'PARTIAL';
-        const color = isFinal ? `${C.bgGreen}${C.bold}${C.white}` : `${C.green}${C.bold}`;
-        const text = msg.text || '';
-        
-        log(
-          `[STT ${tag}]`,
-          color,
-          state.sourceId,
-          `[backend=${msg.backend} | ${msg.asr_latency_ms}ms] utt=${C.yellow}${msg.turnId}${C.reset} "${text}"`,
-        );
-
-        broadcastToSession(state.sessionId, ws, {
-          protocol_version: PROTOCOL_VERSION,
-          type: msg.type,
-          session_id: state.sessionId,
-          stream_id: state.streamId,
-          source_id: state.sourceId,
-          speaker_id: state.speakerId,
-          utterance_id: msg.turnId,
-          text: text,
-          language: msg.language,
-          backend: msg.backend,
-          asr_latency_ms: msg.asr_latency_ms,
-          low_confidence: false,
-          eou: false,
-          server_time: ts(),
-        });
-
-        if (isFinal && text.trim().length > 0) {
-          callTranslationService(ws, state, msg.turnId, text, msg.language).catch(() => undefined);
-        }
-      } else if (msg.type === 'stt.error') {
-        log('[STT ERROR]', C.red, state.sourceId, msg.error || 'Unknown STT WS Error');
-      }
-    } catch (e) {
-      log('[STT ERROR]', C.red, state.sourceId, `Failed to parse STT WS message: ${e}`);
-    }
-  });
-
-  state.sttWs.on('error', (err) => {
-    log('[STT ERROR]', C.red, state.sourceId, `STT WS Connection error: ${err.message}`);
-  });
-
-  state.sttWs.on('close', () => {
-    log('[STT]', C.dim, state.sourceId, 'STT WS Connection closed');
-  });
+  // Establish persistent connection to STT WS backend (auto-reconnect + replay)
+  connectSttWs(ws, state);
 
   // ------------------------------------------------------------------
   // Text frames → control events
@@ -281,6 +235,7 @@ wss.on('connection', (ws: WebSocket) => {
   });
 
   ws.on('close', () => {
+    state.clientClosed = true; // stop the STT reconnect loop
     // Deregister from session registry
     if (state.sessionId) deregisterSession(state.sessionId, ws);
     if (state.sttWs && state.sttWs.readyState === WebSocket.OPEN) {
@@ -313,6 +268,126 @@ function toArrayBuffer(data: Buffer | ArrayBuffer | Buffer[]): ArrayBuffer {
   if (data instanceof ArrayBuffer) return data;
   const buf = Array.isArray(data) ? Buffer.concat(data) : Buffer.from(data);
   return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
+}
+
+// ---------------------------------------------------------------------------
+// STT WebSocket bridge — persistent per-client socket with reconnect + replay.
+//
+// The Python side keeps the audio buffer only in socket-local state: any drop
+// (or a start_turn sent before the socket was OPEN) loses the whole turn. So
+// on every (re)open we replay the authoritative turn state from pcmChunks
+// instead of trusting whatever happened to get through earlier.
+// ---------------------------------------------------------------------------
+const STT_WS_URL = process.env.STT_WS_URL || 'ws://localhost:8001/ws';
+
+function sttStartTurnPayload(utt: ActiveUtterance): string {
+  return JSON.stringify({
+    type: 'start_turn',
+    turnId: utt.id,
+    language: utt.langHint,
+    cadence_ms: PARTIAL_CADENCE_MS,
+  });
+}
+
+function connectSttWs(clientWs: WebSocket, state: SessionState): void {
+  const sock = new WebSocket(STT_WS_URL);
+  state.sttWs = sock;
+
+  sock.on('open', () => {
+    if (state.sttWs !== sock) return;
+    state.sttBackoffMs = 500;
+    log('[STT]', C.green, state.sourceId, 'Connected to STT WebSocket');
+
+    if (state.pendingFinal) {
+      // utterance.end arrived while STT was down — replay the whole turn.
+      const utt = state.pendingFinal;
+      state.pendingFinal = null;
+      sock.send(sttStartTurnPayload(utt));
+      for (const chunk of utt.pcmChunks) sock.send(chunk);
+      sock.send(JSON.stringify({ type: 'finish_turn', turnId: utt.id }));
+      log('[STT]', C.yellow, state.sourceId, `replayed finished turn ${utt.id} (${utt.pcmChunks.length} chunks)`);
+    } else if (state.activeUtterance) {
+      // Turn opened before the socket was ready (or mid-turn reconnect).
+      const utt = state.activeUtterance;
+      sock.send(sttStartTurnPayload(utt));
+      for (const chunk of utt.pcmChunks) sock.send(chunk);
+      if (utt.pcmChunks.length > 0) {
+        log('[STT]', C.yellow, state.sourceId, `replayed active turn ${utt.id} (${utt.pcmChunks.length} chunks)`);
+      }
+    }
+  });
+
+  sock.on('message', (data: Buffer) => {
+    if (state.sttWs !== sock) return;
+    try {
+      const msg = JSON.parse(data.toString());
+      if (msg.type === 'stt.partial' || msg.type === 'stt.final') {
+        const isFinal = msg.type === 'stt.final';
+        const tag = isFinal ? 'FINAL' : 'PARTIAL';
+        const color = isFinal ? `${C.bgGreen}${C.bold}${C.white}` : `${C.green}${C.bold}`;
+        const text = msg.text || '';
+
+        log(
+          `[STT ${tag}]`,
+          color,
+          state.sourceId,
+          `[backend=${msg.backend} | ${msg.asr_latency_ms}ms] utt=${C.yellow}${msg.turnId}${C.reset} "${text}"`,
+        );
+
+        broadcastToSession(state.sessionId, clientWs, {
+          protocol_version: PROTOCOL_VERSION,
+          type: msg.type,
+          session_id: state.sessionId,
+          stream_id: state.streamId,
+          source_id: state.sourceId,
+          speaker_id: state.speakerId,
+          utterance_id: msg.turnId,
+          text: text,
+          language: msg.language,
+          backend: msg.backend,
+          asr_latency_ms: msg.asr_latency_ms,
+          low_confidence: msg.low_confidence ?? false,
+          eou: msg.eou ?? null,
+          server_time: ts(),
+        });
+
+        if (isFinal && text.trim().length > 0) {
+          callTranslationService(clientWs, state, msg.turnId, text, msg.language).catch(() => undefined);
+        }
+      } else if (msg.type === 'stt.error') {
+        log('[STT ERROR]', C.red, state.sourceId, msg.error || 'Unknown STT WS Error');
+        // Surface the failure so the UI can drop its stuck live-partial state.
+        broadcastToSession(state.sessionId, clientWs, {
+          protocol_version: PROTOCOL_VERSION,
+          type: 'stt.error',
+          session_id: state.sessionId,
+          source_id: state.sourceId,
+          utterance_id: msg.turnId ?? null,
+          message: msg.error ?? 'stt_error',
+          server_time: ts(),
+        });
+      }
+    } catch (e) {
+      log('[STT ERROR]', C.red, state.sourceId, `Failed to parse STT WS message: ${e}`);
+    }
+  });
+
+  sock.on('error', (err: Error) => {
+    if (state.sttWs !== sock) return;
+    log('[STT ERROR]', C.red, state.sourceId, `STT WS Connection error: ${err.message}`);
+  });
+
+  sock.on('close', () => {
+    if (state.sttWs !== sock) return;
+    log('[STT]', C.dim, state.sourceId, 'STT WS Connection closed');
+    if (state.clientClosed) return;
+    const delay = state.sttBackoffMs;
+    state.sttBackoffMs = Math.min(state.sttBackoffMs * 2, 5000);
+    log('[STT]', C.yellow, state.sourceId, `Reconnecting to STT WebSocket in ${delay}ms…`);
+    setTimeout(() => {
+      if (!state.clientClosed && state.sttWs === sock) connectSttWs(clientWs, state);
+    }, delay);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -417,13 +492,10 @@ function handleTextFrame(ws: WebSocket, state: SessionState, raw: string): void 
           `pre_roll=${vad?.pre_roll_ms ?? 0}ms`,
       );
       
-      // Send start_turn to STT service
+      // Send start_turn to STT service. If the socket is not OPEN yet the turn
+      // is NOT lost: connectSttWs replays it (start_turn + buffered audio).
       if (state.sttWs && state.sttWs.readyState === WebSocket.OPEN) {
-        state.sttWs.send(JSON.stringify({
-          type: 'start_turn',
-          turnId: uttId,
-          language: state.activeUtterance.langHint
-        }));
+        state.sttWs.send(sttStartTurnPayload(state.activeUtterance));
       }
       break;
     }
@@ -448,13 +520,14 @@ function handleTextFrame(ws: WebSocket, state: SessionState, raw: string): void 
       );
 
       if (state.activeUtterance && state.activeUtterance.id === uttId) {
-        if (state.sttWs && state.sttWs.readyState === WebSocket.OPEN) {
-          state.sttWs.send(JSON.stringify({
-            type: 'finish_turn',
-            turnId: uttId
-          }));
-        }
+        const utt = state.activeUtterance;
         state.activeUtterance = null;
+        if (state.sttWs && state.sttWs.readyState === WebSocket.OPEN) {
+          state.sttWs.send(JSON.stringify({ type: 'finish_turn', turnId: uttId }));
+        } else {
+          // STT is down right now — replay start+audio+finish on reconnect.
+          state.pendingFinal = utt;
+        }
       }
 
       // D3: ACK once after utterance.end, not periodic

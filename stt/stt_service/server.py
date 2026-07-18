@@ -11,6 +11,7 @@ Run server:
     uvicorn stt_service.server:app --host 0.0.0.0 --port 8001
 """
 
+import asyncio
 import base64
 import io
 import json
@@ -173,6 +174,139 @@ async def transcribe_ws(websocket: WebSocket):
             await websocket.close()
         except Exception:
             pass
+
+
+@app.websocket("/ws")
+async def transcribe_ws_turns(websocket: WebSocket):
+    """Turn-protocol WebSocket used by the Node gateway (voice/src/mock-server).
+
+    Wire format:
+      client → server (text JSON): {"type": "start_turn", "turnId", "language", "cadence_ms"}
+                                   {"type": "finish_turn", "turnId"}
+      client → server (binary):    raw PCM_S16LE 16kHz mono chunks (buffered per turn)
+      server → client (text JSON): {"type": "stt.partial"|"stt.final", "turnId", "text",
+                                    "language", "backend", "asr_latency_ms",
+                                    "low_confidence", "eou"}
+                                   {"type": "stt.error", "error"}
+
+    The server accumulates audio per turn and re-decodes the buffer on a fixed
+    cadence (from start_turn) for partials; finish_turn triggers the final.
+    The gateway owns reconnect/replay — a fresh socket always starts clean.
+    """
+    await websocket.accept()
+    logger.info("Turn-protocol WebSocket connected: %s", websocket.client)
+
+    turn_id: Optional[str] = None
+    language_hint = "vi"
+    audio_buffer = bytearray()
+    partial_task: Optional[asyncio.Task] = None
+    turn_active = False
+    cadence_s = 1.0
+
+    async def periodic_partial() -> None:
+        try:
+            while turn_active:
+                start_tick = asyncio.get_event_loop().time()
+                if audio_buffer and turn_id:
+                    audio = _bytes_to_float32_audio(bytes(audio_buffer))
+                    if audio.size > 0:
+                        try:
+                            res = await run_in_threadpool(
+                                service.transcribe, turn_id, audio, language_hint, False, None
+                            )
+                            if res:
+                                await websocket.send_json({
+                                    "type": "stt.partial",
+                                    "turnId": turn_id,
+                                    "text": res.get("text", ""),
+                                    "language": res.get("language", language_hint),
+                                    "backend": res.get("backend", "unknown"),
+                                    "asr_latency_ms": res.get("asr_latency_ms", 0),
+                                    "low_confidence": res.get("low_confidence", False),
+                                    "eou": res.get("eou"),
+                                })
+                        except Exception as e:
+                            logger.error("Error in periodic partial: %s", e)
+                # Cadence comes from the gateway's start_turn (PARTIAL_CADENCE_MS)
+                elapsed = asyncio.get_event_loop().time() - start_tick
+                await asyncio.sleep(max(0.1, cadence_s - elapsed))
+        except asyncio.CancelledError:
+            pass
+
+    try:
+        while True:
+            message = await websocket.receive()
+            # Raw receive() does NOT raise WebSocketDisconnect — it returns the
+            # disconnect message; looping past it raises RuntimeError instead.
+            if message.get("type") == "websocket.disconnect":
+                break
+            if "text" in message and message["text"]:
+                try:
+                    data = json.loads(message["text"])
+                    msg_type = data.get("type")
+
+                    if msg_type == "start_turn":
+                        turn_id = data.get("turnId")
+                        language_hint = data.get("language", "vi")
+                        try:
+                            cadence_s = max(0.25, float(data.get("cadence_ms", 1000)) / 1000.0)
+                        except (TypeError, ValueError):
+                            cadence_s = 1.0
+                        audio_buffer.clear()
+                        turn_active = True
+                        if partial_task:
+                            partial_task.cancel()
+                        partial_task = asyncio.create_task(periodic_partial())
+                        logger.info("Started turn %s (cadence=%.2fs)", turn_id, cadence_s)
+
+                    elif msg_type == "finish_turn":
+                        turn_active = False
+                        turn_id = data.get("turnId") or turn_id
+                        if partial_task:
+                            partial_task.cancel()
+
+                        raw_bytes = bytes(audio_buffer)
+                        audio_buffer.clear()
+                        audio = _bytes_to_float32_audio(raw_bytes)
+                        try:
+                            res = await run_in_threadpool(
+                                service.transcribe, turn_id, audio, language_hint, True, None
+                            )
+                            if res:
+                                await websocket.send_json({
+                                    "type": "stt.final",
+                                    "turnId": turn_id,
+                                    "text": res.get("text", ""),
+                                    "language": res.get("language", language_hint),
+                                    "backend": res.get("backend", "unknown"),
+                                    "asr_latency_ms": res.get("asr_latency_ms", 0),
+                                    "low_confidence": res.get("low_confidence", False),
+                                    "eou": res.get("eou"),
+                                })
+                        except Exception as e:
+                            logger.error("Error in final transcribe: %s", e)
+                            await websocket.send_json({"type": "stt.error", "turnId": turn_id, "error": str(e)})
+                        logger.info("Finished turn %s", turn_id)
+
+                except json.JSONDecodeError as e:
+                    logger.error("Invalid JSON on turn-protocol WS: %s", e)
+
+            elif "bytes" in message and message["bytes"]:
+                if turn_active:
+                    audio_buffer.extend(message["bytes"])
+
+    except WebSocketDisconnect:
+        logger.info("Turn-protocol WebSocket disconnected: %s", websocket.client)
+    except Exception as exc:
+        logger.exception("Turn-protocol WebSocket error: %s", exc)
+        try:
+            await websocket.close(code=1011)
+        except Exception:
+            pass
+    finally:
+        turn_active = False
+        if partial_task:
+            partial_task.cancel()
 
 
 def main():

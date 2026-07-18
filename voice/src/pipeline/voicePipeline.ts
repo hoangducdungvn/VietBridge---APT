@@ -16,6 +16,7 @@ import {
 } from "../audio/captureAdapter";
 import { type AudioQuality } from "../audio/resampler";
 import { VadEngine, type VadState, type VadEvent } from "../vad/vadEngine";
+import { createTieredEndSilencePolicy } from "../vad/endSilencePolicy";
 import {
   UtteranceManager,
   type UtteranceCallbacks,
@@ -100,6 +101,11 @@ export class VoicePipeline {
   private sessionStartTime = 0;
   private running = false;
 
+  /** Latest STT partial for the ACTIVE utterance — feeds the tiered
+   *  end-silence policy. Reset on utterance start/end so a stale tail from the
+   *  previous utterance can't stretch the next one's hangover. */
+  private latestPartialText = '';
+
   // Chunk grouping buffer: accumulate N 20ms frames then send as one chunk
   private chunkBuffer: Int16Array[] = [];
   private chunkQualityBuffer: AudioQuality[] = [];
@@ -126,14 +132,14 @@ export class VoicePipeline {
     this.events = events;
     this.capture = new WebAudioCaptureAdapter();
     // Studio Mode assumes a quiet room → VAD may be more sensitive (0.65).
-    // It also assumes longer monologue speaking styles, so we increase endSilenceMs
-    // to 3500ms so pauses for breath don't cut the sentence.
-    // Default mode gets 2500ms (default VadEngine config)
-    this.vad = new VadEngine(
-      this.config.studioMode
-        ? { speechStartThreshold: 0.65, endSilenceMs: 3500 }
-        : undefined
-    );
+    // End-of-turn hangover is tiered instead of flat: 600ms baseline, extended
+    // to ~1100ms only when the latest STT partial ends mid-sentence (trailing
+    // connective), shortened to ~480ms on sentence-final punctuation. A flat
+    // long hangover (2500ms) added its full delay to every translation.
+    this.vad = new VadEngine({
+      ...(this.config.studioMode ? { speechStartThreshold: 0.65 } : {}),
+      endSilencePolicy: createTieredEndSilencePolicy(() => this.latestPartialText),
+    });
   }
 
   // -------------------------------------------------------------------------
@@ -166,6 +172,7 @@ export class VoicePipeline {
     // 1. Init utterance manager
     const uttCallbacks: UtteranceCallbacks = {
       onUtteranceStart: (info) => {
+        this.latestPartialText = '';
         this.transport.sendUtteranceStart(info);
         this.totalUtterances++;
         this.events.onUtteranceStart?.(info.utterance_id);
@@ -174,6 +181,7 @@ export class VoicePipeline {
         );
       },
       onUtteranceEnd: (info) => {
+        this.latestPartialText = '';
         this.transport.sendUtteranceEnd(info);
         this.events.onUtteranceEnd?.(info.utterance_id, info.reason);
         this.log(
@@ -223,6 +231,11 @@ export class VoicePipeline {
         this.events.onError?.("SERVER_BACKPRESSURE", evt.message);
       },
       onSttResult: (res) => {
+        // Feed the tiered end-silence policy. Only partials of the utterance
+        // that is still open matter — finals arrive after the turn closed.
+        if (res.type === 'partial' && this.utteranceManager?.isActive()) {
+          this.latestPartialText = res.text ?? '';
+        }
         this.events.onSttResult?.(res);
       },
       onTranslationResult: (res) => {

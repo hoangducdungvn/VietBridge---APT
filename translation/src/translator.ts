@@ -4,7 +4,7 @@
 // (see voice/scripts/translate_cli.ts) and later ported 1:1 into the backend's
 // TranslationProvider implementation.
 
-import { buildTranslationPrompt, buildTranslationSystemPrompt, buildTranslationUserPrompt, type TranslationTurn } from './prompts';
+import { buildTranslationSystemPrompt, buildTranslationUserPrompt, type TranslationTurn } from './prompts';
 import { protectCriticalValues, restoreCriticalValues } from './criticalTokens';
 
 export type TranslateLang = 'vi' | 'en';

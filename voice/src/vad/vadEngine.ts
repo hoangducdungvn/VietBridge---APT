@@ -32,6 +32,17 @@ export interface VadConfig {
   /** Maximum utterance duration in ms (must stay < Whisper 30 s limit). */
   maxUtteranceMs: number;
   /**
+   * Optional dynamic hangover: consulted on every POSSIBLE_END frame and wins
+   * over endSilenceMs when set. Lets the caller extend the hangover when the
+   * latest STT partial ends mid-sentence (see vad/endSilencePolicy.ts) without
+   * paying a longer flat delay on every utterance.
+   */
+  endSilencePolicy?: (ctx: {
+    speechDurationMs: number;
+    silenceDurationMs: number;
+    defaultEndSilenceMs: number;
+  }) => number;
+  /**
    * R2 — Speech probability backend:
    * - 'energy'  : Energy + ZCR (fast, synchronous, default/fallback)
    * - 'silero'  : Silero VAD neural network (accurate, async, requires model load)
@@ -60,11 +71,14 @@ export interface VadEvent {
 const DEFAULT_CONFIG: VadConfig = {
   frameDurationMs: 20,
   speechStartThreshold: 0.70,   // default (noisy-safe); Studio Mode passes 0.65 (quiet room assumed)
-  speechEndThreshold: 0.22,     // tolerate soft syllables and room noise dips before ending
+  speechEndThreshold: 0.28,     // lowered 0.35→0.28: cut speech more aggressively when quiet
   minSpeechMs: 150,             // raised 120→150ms: filters mic pops and single clicks
   preRollMs: 400,               // raised 200→400ms: keep breath intake + leading consonants ("H" in "Hello")
-  endSilenceMs: 2500,           // raised 1000->2500ms: allow natural pauses for translation context
-  maxUtteranceMs: Infinity,     // user requested unlimited utterance duration
+  endSilenceMs: 600,            // contract §13 baseline; endSilencePolicy extends it per-utterance
+                                // when the transcript tail looks unfinished (was flat 2500ms — that
+                                // added 2.5s to EVERY utterance's time-to-translation)
+  maxUtteranceMs: 20_000,       // hard cap: bounds replay/buffer memory + final decode latency;
+                                // UtteranceManager continuation chains handle longer monologues
   backend: 'energy',  // R2: energy by default; loadSilero() switches to 'silero' on success
 };
 
@@ -475,7 +489,13 @@ export class VadEngine {
           };
         }
 
-        if (silenceDuration >= this.config.endSilenceMs) {
+        const endSilenceMs =
+          this.config.endSilencePolicy?.({
+            speechDurationMs: speechDuration,
+            silenceDurationMs: silenceDuration,
+            defaultEndSilenceMs: this.config.endSilenceMs,
+          }) ?? this.config.endSilenceMs;
+        if (silenceDuration >= endSilenceMs) {
           // Confirmed silence → end utterance
           this.state = 'IDLE';
           this.possibleSpeechAccMs = 0;

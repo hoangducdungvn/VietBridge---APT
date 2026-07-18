@@ -1,7 +1,7 @@
 numpy>=1.24
 requests>=2.31
 fastapi>=0.110
-uvicorn>=0.28
+uvicorn[standard]>=0.28
 python-multipart>=0.0.9
 # Optional, only for BACKEND="local":
 # faster-whisper>=1.0
