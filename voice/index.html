@@ -202,6 +202,14 @@
         </select>
       </div>
       <div class="config-row">
+        <label for="studio-mode" style="cursor: pointer;">🎙️ Studio Quality (Raw Audio)</label>
+        <input type="checkbox" id="studio-mode" style="width: 18px; height: 18px; cursor: pointer;" />
+      </div>
+      <div style="font-size: 0.72rem; color: var(--text-muted); margin: -6px 0 8px;">
+        Thu âm thô, tắt lọc ồn của trình duyệt — chỉ dùng với <b>tai nghe</b> trong phòng yên tĩnh (loa ngoài sẽ gây hú).
+        Trạng thái môi trường: <span id="env-level">—</span>
+      </div>
+      <div class="config-row">
         <label>Gateway URL</label>
         <input type="text" id="ws-url" value="ws://localhost:8081" />
       </div>

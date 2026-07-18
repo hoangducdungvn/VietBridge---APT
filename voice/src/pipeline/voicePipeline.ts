@@ -59,6 +59,9 @@ export interface VoicePipelineConfig {
   enableSileroVad?: boolean;
   /** Override raw WebSocket transport with the host application's transport. */
   transportFactory?: VoiceTransportFactory;
+  /** Studio mode: raw capture (browser AEC/NS/AGC off) + more sensitive VAD.
+   *  Quiet-room + headset only (D11); default false. */
+  studioMode?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -117,11 +120,18 @@ export class VoicePipeline {
       enableSileroVad: config.enableSileroVad ?? true,
       chunkGroupSize: config.chunkGroupSize ?? 2, // 2 × 20ms = 40ms per chunk
       transportFactory: config.transportFactory,
+      studioMode: config.studioMode ?? false,
     };
 
     this.events = events;
     this.capture = new WebAudioCaptureAdapter();
-    this.vad = new VadEngine();
+    // Studio Mode assumes a quiet room → VAD may be more sensitive (0.65).
+    // Default 0.70 stays noisy-safe: with browser noise suppression ON the
+    // model still sees a cleaned signal, and a higher bar avoids phantom
+    // utterances from nearby talkers (cocktail-party false starts).
+    this.vad = new VadEngine(
+      this.config.studioMode ? { speechStartThreshold: 0.65 } : undefined,
+    );
   }
 
   // -------------------------------------------------------------------------
@@ -271,8 +281,13 @@ export class VoicePipeline {
     try {
       await this.capture.start({
         deviceId: this.config.deviceId || undefined,
+        studioMode: this.config.studioMode,
       });
-      this.log("Audio capture started");
+      this.log(
+        this.config.studioMode
+          ? "Audio capture started — STUDIO MODE (raw audio, browser DSP off)"
+          : "Audio capture started",
+      );
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.log(`Capture start failed: ${msg}`);
@@ -491,10 +506,11 @@ export class VoicePipeline {
           overlap: false,
           active_speaker_ids: speakerId ? [speakerId] : [],
         },
+        // Must reflect reality — downstream reads these per contract §9.
         processing: {
-          aec_applied: true,
-          noise_suppression_applied: true,
-          agc_applied: true,
+          aec_applied: !this.config.studioMode,
+          noise_suppression_applied: !this.config.studioMode,
+          agc_applied: !this.config.studioMode,
           resampled: true,
         },
         quality: {

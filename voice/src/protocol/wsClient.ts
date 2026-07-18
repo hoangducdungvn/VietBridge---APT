@@ -50,6 +50,7 @@ export interface SttResultEvent {
   backend: string;
   latencyMs: number;
   utteranceId: string;
+  lowConfidence?: boolean;
 }
 
 export interface TranslationResultEvent {
@@ -396,6 +397,7 @@ export class VoiceStreamClient {
           backend: string;
           asr_latency_ms: number;
           utterance_id: string;
+          low_confidence?: boolean;
         };
         this.events.onSttResult?.({
           type: stt.type === 'stt.final' ? 'final' : 'partial',
@@ -404,6 +406,7 @@ export class VoiceStreamClient {
           backend: stt.backend || 'auto',
           latencyMs: stt.asr_latency_ms || 0,
           utteranceId: stt.utterance_id || '',
+          lowConfidence: stt.low_confidence === true,
         });
         break;
       }

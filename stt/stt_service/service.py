@@ -128,7 +128,10 @@ def _normalize_audio(audio: np.ndarray) -> np.ndarray:
         return audio
     if peak >= config.NORMALIZE_MIN_PEAK:  # already loud enough
         return audio
-    scale = config.NORMALIZE_TARGET / peak
+    # Gain cap: a near-dead mic (peak ~0.001) would otherwise get x700 gain,
+    # boosting its noise floor into a screech. Capped audio stays quiet and is
+    # then correctly rejected by the silence gate downstream.
+    scale = min(config.NORMALIZE_TARGET / peak, config.NORMALIZE_MAX_GAIN)
     return np.clip(audio * scale, -1.0, 1.0).astype(np.float32)
 
 
@@ -289,7 +292,22 @@ def transcribe(
             utterance_id, audio.size / config.SAMPLE_RATE, config.PARTIAL_WINDOW_S,
         )
 
-    # Trim dead-air from the end to prevent Whisper hallucinations on trailing noise
+    if decode_audio.size == 0:
+        out["asr_latency_ms"] = round((time.perf_counter() - t0) * 1000, 1)
+        logger.debug("utt=%s %s: empty audio, skipped ASR", utterance_id, out["type"])
+        return out
+
+    # Preprocessing BEFORE the silence gate — order matters:
+    # highpass → normalize → trim → gate. The silence thresholds (SILENCE_RMS/
+    # SILENCE_PEAK) assume normalized audio; gating first would throw away whole
+    # utterances from quiet mics (worst with browser AGC off in Studio Mode).
+    # A truly dead signal survives normalization un-boosted past the ~20x gain
+    # cap and is still rejected by the gate below.
+    decode_audio = _highpass_filter(decode_audio)
+    decode_audio = _normalize_audio(decode_audio)
+
+    # Trim dead-air from the end to prevent Whisper hallucinations on trailing
+    # noise (runs on normalized audio — same scale as the gate thresholds).
     decode_audio = _trim_trailing_silence(decode_audio)
 
     if _is_silence(decode_audio):
@@ -297,12 +315,6 @@ def transcribe(
         out["asr_latency_ms"] = round((time.perf_counter() - t0) * 1000, 1)
         logger.debug("utt=%s %s: silence, skipped ASR", utterance_id, out["type"])
         return out
-
-    # Audio preprocessing (applied to real speech only, on the decode window):
-    # 1. High-pass filter: remove DC offset + sub-80Hz rumble (HVAC, fans)
-    # 2. Peak normalize: bring quiet audio to -3 dBFS for optimal Whisper input
-    decode_audio = _highpass_filter(decode_audio)
-    decode_audio = _normalize_audio(decode_audio)
 
     timeout_s = config.TIMEOUT_FINAL_S if is_final else config.TIMEOUT_PARTIAL_S
 

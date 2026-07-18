@@ -98,6 +98,8 @@ HALLUCINATION_NO_SPEECH_THRESHOLD = 0.50
 NORMALIZE_AUDIO = True
 NORMALIZE_TARGET = 0.707        # -3 dBFS  (headroom before sending to API)
 NORMALIZE_MIN_PEAK = 0.50       # only normalize if peak < this (quiet audio)
+NORMALIZE_MAX_GAIN = 20.0       # ~26 dB cap: never boost a near-dead mic's
+                                # noise floor into a screech (x100 gain)
 
 # High-pass filter: remove DC bias and low-frequency rumble (HVAC, fans) < cutoff.
 # First-order IIR at 80 Hz adds ~0.5 ms CPU per 10s utterance — negligible.

@@ -610,6 +610,7 @@ Nhận PCM từ Gateway → Trim Trailing Silence (Cắt đuôi tĩnh lặng) �
 - Limiter phải ngăn clipping nhưng không nén động học quá mức.
 - AEC đặc biệt quan trọng nếu bản dịch/TTS phát qua loa.
 - Nếu có thể, dùng tai nghe để tránh tiếng TTS quay lại microphone.
+- **Studio Mode (bổ sung 1.4, đã triển khai):** ngoại lệ có kiểm soát của các khuyến nghị trên — toggle opt-in (mặc định TẮT) tắt toàn bộ browser AEC/NS/AGC để thu raw PCM, vì NS/AGC của trình duyệt bóp méo dải âm ("underwater effect") trong khi Whisper nhận diện tốt hơn trên audio thô. Chỉ hợp lệ với **tai nghe + phòng yên tĩnh** (an toàn echo nhờ D11); môi trường ồn phải TẮT (NS gánh ồn dừng, VAD giữ ngưỡng cao chống utterance ma — bài toán cocktail party do vật lý mic headset sát miệng giải, không phải NS). Metadata `processing.*` trong audio.chunk phản ánh đúng trạng thái thật. Client có EnvironmentMonitor đọc noise floor lúc VAD IDLE (ngưỡng −55/−45 dBFS có hysteresis), SNR khi nói (<10dB), và tỷ lệ utterance rỗng/low-confidence (>40%) để gợi ý đổi mode qua banner 1-click (cooldown 2 phút). Đi kèm phía STT: peak-normalize chạy TRƯỚC gate im lặng + gain cap 20× — bắt buộc để mic nhỏ (AGC off) không bị vứt oan như im lặng.
 - **TTS mặc định phát qua headset**, không phát qua loa ngoài. Vì cấu hình đã chốt là mỗi người dùng một tai nghe có dây (§3.1), âm thanh dịch (TTS) cần được đặt làm output audio của chính tai nghe đó — vừa tránh vòng lặp echo (loa phát lại vào mic chính mình hoặc mic người kia), vừa không cần AEC phải xử lý trường hợp khó (loa ngoài + nhiều mic trong cùng phòng). Nếu phạm vi sau này mở rộng sang loa ngoài (ví dụ phát cho cả phòng nghe), AEC bắt buộc phải bật và cần test lại riêng.
 
 ### 12.3 Chỉ số chất lượng
@@ -647,12 +648,14 @@ Khuyến nghị ban đầu, cần tune bằng dữ liệu thực tế:
 | Tham số | Giá trị khởi đầu |
 |---|---|
 | Frame | `20 ms` |
-| Speech start probability | `0.60–0.70` |
-| Speech end probability | `0.30–0.45` |
-| Minimum speech | `100–150 ms` |
-| Pre-roll | `250 ms` |
+| Speech start probability | `0.70` thường / `0.65` khi Studio Mode (phòng yên tĩnh) |
+| Speech end probability | `0.28` |
+| Minimum speech | `150 ms` |
+| Pre-roll | `400 ms` (giữ trọn hơi lấy giọng + phụ âm đầu) |
 | End silence/hangover | `600 ms` |
-| Maximum utterance | `≤ 28 s` (khuyến nghị `25 s`) |
+| Maximum utterance | `≤ 28 s` (triển khai hiện tại: `20 s`) |
+
+(Bảng trên là giá trị **đã triển khai** từ 1.4; các dải giá trị đề xuất ban đầu giữ trong lịch sử git nếu cần đối chiếu.)
 
 Dùng hysteresis: ngưỡng bắt đầu cao hơn ngưỡng kết thúc để tránh state nhấp nháy trong môi trường ồn.
 

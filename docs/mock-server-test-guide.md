@@ -115,6 +115,18 @@ Mở `http://localhost:5173`, sau đó:
 
 **Lưu ý khi đọc partial:** với câu dài hơn 6s, partial chỉ hiển thị "cửa sổ đuôi" 6s cuối (sliding window phía STT) — phần đầu câu biến mất khỏi partial là **đúng thiết kế**, final luôn đủ toàn văn.
 
+## 4b. Test Studio Mode + EnvironmentMonitor (browser UI)
+
+Studio Mode = checkbox **🎙️ Studio Quality (Raw Audio)** trong Configuration — tắt AEC/NS/AGC của trình duyệt, thu raw PCM. Mặc định TẮT; chỉ bật khi dùng tai nghe trong phòng yên tĩnh. Checkbox bị khóa khi pipeline đang chạy (đổi mode = stop → start lại).
+
+Ba kịch bản kiểm tra:
+
+1. **Toggle TẮT, phòng thường** — hành vi y hệt trước; dòng "Trạng thái môi trường" dưới checkbox hiện 🟢/🟡/🔴 kèm noise floor (dBFS) sau ~1–5s chạy.
+2. **Toggle BẬT + tai nghe, phòng yên tĩnh** — nói thầm câu bắt đầu bằng phụ âm bật hơi ("Hello", "Phương án là...") → transcript không mất chữ đầu (pre-roll 400ms); ngập ngừng giữa câu → không bị cắt đôi utterance (end-silence 600ms).
+3. **Toggle BẬT + tạo tiếng ồn** (bật video đám đông/quạt sát mic) — trong ≤10s phải xuất hiện toast góc phải "Môi trường ồn... [Tắt Studio Mode]"; bấm nút → pipeline tự restart với mode mới, không crash; bấm "Bỏ qua" → toast im hẳn phiên đó. Gợi ý có cooldown 2 phút.
+
+Ngoài ra: nếu >40% utterance gần đây trả text rỗng/low-confidence khi đang ở Studio Mode, monitor cũng gợi ý tắt (dấu hiệu VAD đang ăn tiếng người xung quanh).
+
 ## 5. Test riêng từng tầng khi cần debug
 
 | Tầng | Lệnh | Không cần |
