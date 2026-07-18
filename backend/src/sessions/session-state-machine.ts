@@ -1,6 +1,8 @@
 import { SessionStatus } from './session.types';
 
-export const SESSION_TRANSITIONS: Readonly<Record<SessionStatus, readonly SessionStatus[]>> = {
+export const SESSION_TRANSITIONS: Readonly<
+  Record<SessionStatus, readonly SessionStatus[]>
+> = {
   waiting: ['active'],
   active: ['closing', 'error'],
   closing: ['closed'],

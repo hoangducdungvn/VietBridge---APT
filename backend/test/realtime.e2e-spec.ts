@@ -174,6 +174,8 @@ describe('VietBridge realtime room and turns (e2e)', () => {
 
     const hostFinalsPromise = collectEvents(host, 'stt.final', 2);
     const guestFinalsPromise = collectEvents(guest, 'stt.final', 2);
+    const hostMessagesPromise = collectEvents(host, 'message.final', 2);
+    const guestMessagesPromise = collectEvents(guest, 'message.final', 2);
     const hostEndEvent = turnEvent(
       'turn.end',
       pair,
@@ -191,6 +193,8 @@ describe('VietBridge realtime room and turns (e2e)', () => {
 
     const hostFinals = await hostFinalsPromise;
     const guestFinals = await guestFinalsPromise;
+    const hostMessages = await hostMessagesPromise;
+    const guestMessages = await guestMessagesPromise;
     expect(finalTurnIds(hostFinals)).toEqual(
       expect.arrayContaining([hostTurnId, guestTurnId]),
     );
@@ -200,19 +204,43 @@ describe('VietBridge realtime room and turns (e2e)', () => {
     expect(finalLanguages(hostFinals)).toEqual(
       expect.arrayContaining(['vi', 'en']),
     );
+    expect(messageLanguages(hostMessages, 'sourceLanguage')).toEqual(
+      expect.arrayContaining(['vi', 'en']),
+    );
+    expect(messageLanguages(hostMessages, 'targetLanguage')).toEqual(
+      expect.arrayContaining(['en', 'vi']),
+    );
+    expect(messageSpeakerIds(hostMessages)).toEqual(
+      expect.arrayContaining([pair.hostParticipantId, pair.guestParticipantId]),
+    );
+    expect(messageTurnIds(guestMessages)).toEqual(
+      expect.arrayContaining([hostTurnId, guestTurnId]),
+    );
+    expect(
+      hostMessages.every(
+        (event) =>
+          getString(getRecord(getRecord(event).payload), 'translatedText')
+            .length > 0,
+      ),
+    ).toBe(true);
     expect(turnStore.getBufferedByteLength(hostTurnId)).toBe(0);
     expect(turnStore.getBufferedByteLength(guestTurnId)).toBe(0);
 
     let duplicateFinalCount = 0;
+    let duplicateMessageCount = 0;
     host.on('stt.final', () => {
       duplicateFinalCount += 1;
+    });
+    host.on('message.final', () => {
+      duplicateMessageCount += 1;
     });
     host.emit('turn.end', {
       ...hostEndEvent,
       eventId: 'event-duplicate-end',
     });
-    await delay(100);
+    await delay(400);
     expect(duplicateFinalCount).toBe(0);
+    expect(duplicateMessageCount).toBe(0);
   });
 
   afterAll(async () => app.close());
@@ -316,6 +344,26 @@ function finalLanguages(events: unknown[]): string[] {
   return events.map((event) =>
     getString(getRecord(getRecord(event).payload), 'language'),
   );
+}
+
+function messageLanguages(
+  events: unknown[],
+  key: 'sourceLanguage' | 'targetLanguage',
+): string[] {
+  return events.map((event) =>
+    getString(getRecord(getRecord(event).payload), key),
+  );
+}
+
+function messageSpeakerIds(events: unknown[]): string[] {
+  return events.map((event) => {
+    const payload = getRecord(getRecord(event).payload);
+    return getString(getRecord(payload.speaker), 'participantId');
+  });
+}
+
+function messageTurnIds(events: unknown[]): string[] {
+  return events.map((event) => getString(getRecord(event), 'turnId'));
 }
 
 function getParticipants(event: unknown): unknown[] {

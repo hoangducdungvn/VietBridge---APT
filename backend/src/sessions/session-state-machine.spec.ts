@@ -1,4 +1,8 @@
-import { assertTransition, canTransition, SESSION_TRANSITIONS } from './session-state-machine';
+import {
+  assertTransition,
+  canTransition,
+  SESSION_TRANSITIONS,
+} from './session-state-machine';
 import { SessionStatus } from './session.types';
 
 describe('session-state-machine', () => {

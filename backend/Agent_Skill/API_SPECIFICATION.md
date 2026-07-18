@@ -12,10 +12,10 @@ This document is the source of truth for REST and Socket.IO APIs that are implem
 
 ## Current implementation scope
 
-- Completed through the MVP source-transcript vertical slice: room, realtime turn/audio ingestion, and remote STT orchestration.
+- Completed through the MVP bilingual-message vertical slice: room, realtime turn/audio ingestion, remote STT, remote translation, and room-wide bilingual results.
 - Transports currently available: REST over HTTP and Socket.IO on the same backend origin.
-- Socket authentication, room membership, participant presence, concurrent participant audio segments, ordered PCM buffering, cleanup, FastAPI STT partial/final calls, and room broadcasting are implemented.
-- Translation, context, bilingual `message.final`, and production persistence are not implemented yet.
+- Socket authentication, room membership, participant presence, concurrent participant audio segments, ordered PCM buffering, cleanup, FastAPI STT partial/final calls, FPT LLM translation, and room broadcasting are implemented.
+- `translation.started` and bilingual `message.final` are implemented. Recent conversation context, dynamic glossary management, message replay, and production persistence are not implemented yet.
 - State is stored in memory and is lost whenever the backend process restarts.
 
 ## Base URL
@@ -333,9 +333,11 @@ An invalid, expired, or revoked token fails the handshake with `connect_error` a
 - `participant.left`: a participant socket became offline.
 - `turn.accepted`: this participant's audio segment was created.
 - `turn.rejected`: this participant's start request was invalid or duplicated.
-- `pipeline.error`: invalid identity, turn state, audio, or sequence.
+- `pipeline.error`: invalid identity, turn state, audio, sequence, STT, or translation processing.
 - `stt.partial`: a best-effort source transcript after roughly each 2 seconds of accumulated speech.
 - `stt.final`: the authoritative source transcript after a successful `turn.end`.
+- `translation.started`: final STT was accepted and translation has started.
+- `message.final`: the authoritative bilingual source/translation message for one completed turn.
 
 Server JSON events follow the documented envelope with `type`, `sessionId`, optional participant/turn identifiers, `serverTimestamp`, and `payload`.
 
@@ -390,7 +392,7 @@ socket.emit('audio.chunk', {
 }
 ```
 
-`turn.end` is idempotent: a duplicate does not emit another `stt.final`. End/final, cancel, and error paths clear that segment's buffered audio. Disconnecting a participant cancels and cleans all of that participant's open segments without touching the other participant.
+`turn.end` is idempotent: a duplicate does not emit another `stt.final`, call translation again, or emit another `message.final`. End/final, cancel, and error paths clear that segment's buffered audio. Disconnecting a participant cancels and cleans all of that participant's open segments without touching the other participant.
 
 With `STT_PROVIDER=remote`, `turn.end` sends all accumulated raw PCM to `${STT_BASE_URL}/v1/transcribe` as multipart fields `file`, `utterance_id`, `language_hint`, and `is_final`. The language hint comes from the authenticated participant record, never from an audio event.
 
@@ -417,6 +419,44 @@ With `STT_PROVIDER=remote`, `turn.end` sends all accumulated raw PCM to `${STT_B
 - Partial requests re-decode the accumulated turn audio and allow at most one request in flight per turn.
 - A final supersedes pending partial output. Provider failure emits `pipeline.error` with `STT_TIMEOUT`, `STT_PROVIDER_UNAVAILABLE`, or `STT_PROVIDER_ERROR` and cleans only the failed segment.
 - The backend never logs or persists raw audio or provider API keys.
+
+### Server `translation.started` and `message.final`
+
+After a non-empty `stt.final`, the backend resolves the authenticated speaker's target language, emits `translation.started`, calls the configured Translation provider once, and broadcasts one `message.final` to both participants:
+
+```json
+{
+  "type": "message.final",
+  "sessionId": "session_...",
+  "turnId": "turn_...",
+  "serverTimestamp": 1784293001200,
+  "payload": {
+    "messageId": "message_...",
+    "sequence": 1,
+    "speaker": {
+      "participantId": "participant_...",
+      "displayName": "Duong"
+    },
+    "sourceLanguage": "vi",
+    "targetLanguage": "en",
+    "sourceText": "Xin chào",
+    "translatedText": "Hello",
+    "latency": {
+      "sttFinalMs": 918.4,
+      "translationMs": 642,
+      "endToEndMs": 1710
+    },
+    "createdAt": 1784293001190
+  }
+}
+```
+
+- `sourceLanguage` and `targetLanguage` come from the authenticated participant record; clients cannot override the translation direction in audio events.
+- `sequence` is allocated when the turn starts and lets clients retain conversation order even when two devices finish concurrently.
+- With `TRANSLATION_PROVIDER=remote`, the backend calls `LLM_URL` using `FPT_API_KEY`, `LLM_MODEL`, and `TRANSLATION_TIMEOUT_MS`. The key remains server-side.
+- `NODE_ENV=test` always selects the mock Translation provider. `TRANSLATION_PROVIDER=mock` is also available for local orchestration tests.
+- A provider timeout emits recoverable `pipeline.error` code `TRANSLATION_TIMEOUT`; other provider failures emit `TRANSLATION_UNAVAILABLE`. The already-broadcast source `stt.final` remains available, but no incomplete `message.final` is emitted.
+- Empty final STT text is not sent to the Translation provider.
 
 ## Recommended Postman flow
 
@@ -447,3 +487,4 @@ Use the frontend or the automated Socket.IO e2e suite for realtime events; Postm
 | Five-room lobby | Added fixed `APT001`–`APT005` slots, `GET /api/rooms`, selected-slot creation, real occupancy, and reusable ended slots. |
 | Meeting cleanup | End-session now purges all in-memory turn audio/transcript/partial state; the frontend clears visible transcript state immediately. |
 | Independent microphones | Removed the session-wide speaker lock and `TURN_BUSY`; both participants may stream and finish STT segments concurrently. |
+| MVP Translation | Added remote FPT LLM translation, `translation.started`, idempotent bilingual `message.final`, language-safe routing, latency metadata, and frontend speaker-relative rendering. |

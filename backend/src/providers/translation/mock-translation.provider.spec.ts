@@ -46,7 +46,7 @@ describe('MockTranslationProvider', () => {
     };
 
     const promise = provider.translate(input);
-    
+
     // Fast-forward time
     jest.advanceTimersByTime(300);
 
@@ -83,7 +83,7 @@ describe('MockTranslationProvider', () => {
     };
 
     const promise = provider.translate(input);
-    
+
     // Fast-forward time by 50ms
     jest.advanceTimersByTime(50);
 
@@ -128,7 +128,7 @@ describe('MockTranslationProvider', () => {
     const promise = provider.translate(input);
 
     let isResolved = false;
-    promise.then(() => {
+    void promise.then(() => {
       isResolved = true;
     });
 

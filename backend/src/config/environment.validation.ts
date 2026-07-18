@@ -6,7 +6,10 @@ export type ProviderMode = (typeof PROVIDER_MODES)[number];
 
 export interface EnvironmentVariables {
   CORS_ORIGIN: string;
+  FPT_API_KEY: string;
   HOST: string;
+  LLM_MODEL: string;
+  LLM_URL: string;
   LOG_TRANSCRIPTS: boolean;
   NODE_ENV: NodeEnvironment;
   PORT: number;
@@ -25,7 +28,18 @@ export function validateEnvironment(
   return {
     ...environment,
     CORS_ORIGIN: parseOrigins(environment.CORS_ORIGIN),
+    FPT_API_KEY: parseOptionalString(environment.FPT_API_KEY, ''),
     HOST: parseNonEmptyString('HOST', environment.HOST, '127.0.0.1'),
+    LLM_MODEL: parseNonEmptyString(
+      'LLM_MODEL',
+      environment.LLM_MODEL,
+      'Llama-3.3-70B-Instruct',
+    ),
+    LLM_URL: parseHttpUrl(
+      'LLM_URL',
+      environment.LLM_URL,
+      'https://mkp-api.fptcloud.com/v1/chat/completions',
+    ),
     LOG_TRANSCRIPTS: parseBoolean(
       'LOG_TRANSCRIPTS',
       environment.LOG_TRANSCRIPTS,
@@ -92,6 +106,14 @@ function parseNonEmptyString(
   const resolvedValue = value ?? defaultValue;
   if (typeof resolvedValue !== 'string' || resolvedValue.trim() === '') {
     throw new Error(`${name} must be a non-empty string.`);
+  }
+  return resolvedValue.trim();
+}
+
+function parseOptionalString(value: unknown, defaultValue: string): string {
+  const resolvedValue = value ?? defaultValue;
+  if (typeof resolvedValue !== 'string') {
+    return defaultValue;
   }
   return resolvedValue.trim();
 }
@@ -209,11 +231,7 @@ function parseHttpUrl(
   return resolvedValue.replace(/\/$/, '');
 }
 
-function parseUrl(
-  name: string,
-  value: unknown,
-  defaultValue: string,
-): string {
+function parseUrl(name: string, value: unknown, defaultValue: string): string {
   const resolvedValue = value ?? defaultValue;
 
   if (typeof resolvedValue !== 'string' || resolvedValue.trim() === '') {

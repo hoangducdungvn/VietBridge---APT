@@ -52,6 +52,9 @@ export interface EndTurnResult {
   lowConfidence?: boolean;
   participantId: string;
   providerLatencyMs?: number;
+  sequence: number;
+  startedAt: number;
+  targetLanguage: LanguageCode;
   text: string;
   turnId: string;
 }
