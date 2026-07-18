@@ -2,7 +2,7 @@
 
 ## Completed phase
 
-MVP STT vertical slice — Five-room lobby through source-transcript broadcast
+MVP bilingual translation vertical slice — Voice, STT, Translation, and speaker-relative display
 
 ## What was implemented
 
@@ -14,8 +14,14 @@ MVP STT vertical slice — Five-room lobby through source-transcript broadcast
 - Added a configurable mock/remote STT provider boundary and FastAPI multipart adapter.
 - Added best-effort accumulated-audio partial STT at 2-second intervals and authoritative final STT, with only one partial request in flight.
 - Added provider timeout/unavailable/error mapping, provider latency metadata, cleanup on provider failure, and room-wide `stt.partial`/`stt.final` broadcasts.
+- Wired final STT into the provider-agnostic Translation boundary and configured `TRANSLATION_PROVIDER=remote` to call the FPT chat-completions LLM with server-only credentials.
+- Added room-wide `translation.started` and idempotent bilingual `message.final` events containing speaker identity, source/target languages, source/translated text, sequence, and latency metadata.
+- Kept final source STT available when translation fails and mapped failures to recoverable `TRANSLATION_TIMEOUT` or `TRANSLATION_UNAVAILABLE` errors without exposing provider responses or keys.
+- Ensured duplicate `turn.end` never triggers a second translation request or bilingual message and suppresses late translation output after a session is closed.
 - Added a Socket.IO voice transport that buffers pre-roll until `turn.accepted`, sends ordered PCM from the existing AudioWorklet/VAD pipeline, and does not reset a local segment when the other participant's final result arrives.
 - Replaced the primary meeting caption mock with microphone control and real source-language transcript rendering in both browsers.
+- Reworked the meeting display around the local participant: the right green pane contains only that participant's original STT, while the left pane contains only the other participant's text translated into the local language.
+- Added strict Frontend parsing for `message.final`, per-turn deduplication, sequence ordering, and cleanup of both source and translated conversation state when leaving or ending a meeting.
 - Added LAN-safe frontend serving, REST/Socket.IO CORS, share links containing the required guest language, and runtime backend-host resolution for two-machine testing.
 - Added a backend-owned five-room lobby (`APT001`–`APT005`) whose cards always exist and report real empty/waiting/full occupancy through `GET /api/rooms`.
 - Added selected-slot session creation, conflict handling for occupied slots, and automatic slot reuse after a session ends.
@@ -34,25 +40,27 @@ MVP STT vertical slice — Five-room lobby through source-transcript broadcast
 
 ## Why this foundation exists
 
-- Session and Participant own identity/language, Realtime owns transport/presence, Turn owns participant-scoped segmentation/buffering, Pipeline owns STT orchestration, and provider adapters own external calls. This keeps translation and context additions out of controllers and gateways.
+- Session and Participant own identity/language, Realtime owns transport/presence, Turn owns participant-scoped segmentation/buffering, Pipeline owns STT-to-Translation orchestration, and provider adapters own external calls. The Frontend renders messages relative to the authenticated participant rather than assuming a fixed language side.
 
 ## Files and modules created
 
 - `src/realtime/realtime.gateway.ts` and the wired `RealtimeModule`.
 - `src/pipeline/pipeline.service.ts` and the wired `PipelineModule`.
+- `src/providers/translation/translation.module.ts`, mock/remote Translation providers, and Translation orchestration tests.
 - `src/providers/stt/stt-transcription-provider.interface.ts`, mock provider, remote FastAPI provider, and the wired `SttModule`.
 - `src/turns/turn.types.ts`, `turn.store.ts`, `turns.service.ts`, `turns.service.spec.ts`, and the wired `TurnsModule`.
 - Extended participant/session services for presence, identity lookup, realtime state, and language-pair enforcement.
 - `src/sessions/lobby-room.catalog.ts` and `src/sessions/lobby-rooms.controller.ts` for the stable five-slot lobby contract.
 - `test/realtime.e2e-spec.ts` plus updated REST e2e coverage.
+- `frontend/src/infrastructure/websocket/SessionSocketClient.ts` and `frontend/src/presentation/views/MeetingRoomScreen.tsx` for bilingual event parsing and left/right speaker-relative rendering.
 - Updated `Agent_Skill/API_SPECIFICATION.md` with the REST language rule and runnable Socket.IO contracts.
 
 ## Validation results
 
 - Lint: PASS — `npm run lint` completed with 0 errors.
-- Tests: PASS — `npm run test -- --runInBand` passed 5 suites and 29 tests, including concurrent host/guest audio and room-wide final broadcasts.
+- Tests: PASS — `npm run test -- --runInBand` passed 11 suites and 55 tests, including Translation orchestration, idempotent bilingual messages, concurrent host/guest audio, and room-wide broadcasts.
 - Build: PASS — `npm run build` completed with 0 TypeScript errors.
-- Frontend: PASS — lint, 20 tests, and production build completed for lobby, invite copy, Socket.IO readiness, automatic microphone, local-pane identification, transcript scrolling, and end-meeting cleanup.
+- Frontend: PASS — lint, 21 tests, and production build completed, including the right-side local source transcript, left-side remote translation, Socket.IO readiness, scrolling, and end-meeting cleanup.
 - Voice: PASS — TypeScript typecheck and production build completed with participant-isolated final/error handling.
 - Live Socket.IO smoke: PASS — host and guest connected to one backend session, both were online, and both transports upgraded to WebSocket.
 - LAN HTTPS gateway: PASS — trusted certificate hostname validation, `/health`, REST create/end, and Socket.IO WebSocket upgrade passed through the configured LAN HTTPS origin; the current Wi-Fi URL is `https://192.168.10.19:5173`.
@@ -60,10 +68,10 @@ MVP STT vertical slice — Five-room lobby through source-transcript broadcast
 
 ## Not implemented yet
 
-- Mock/real Translation, bilingual `message.final`, conversation context, glossary, and latency metrics.
+- Recent-turn conversation context, dynamic glossary management, persistent/replayable message history, and a dedicated observability latency service.
 - VAD tuning: each device currently closes its own utterance after 600 ms of silence, so hesitant speech can still be split into multiple transcript segments; this no longer blocks the other participant.
 - Persistent storage, Redis, Kafka, WebRTC, video, TTS, summaries, and microservices.
 
 ## Recommended next phase
 
-- Run the two-browser MVP STT acceptance test with real Vietnamese/FPT and English/Groq speech, then implement the next Translation Pipeline phase from `Agent_Skill/plan/08_IMPLEMENTATION_PLAN.md`.
+- Run the two-device bilingual acceptance test with Vietnamese/FPT STT, English/Groq STT, and FPT LLM translation; then implement bounded recent-turn Context and glossary support from `Agent_Skill/plan/08_IMPLEMENTATION_PLAN.md`.

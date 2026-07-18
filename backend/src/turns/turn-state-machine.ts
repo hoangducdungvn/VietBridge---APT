@@ -1,6 +1,8 @@
 import { TurnStatus } from './turn.types';
 
-export const TURN_TRANSITIONS: Readonly<Record<TurnStatus, readonly TurnStatus[]>> = {
+export const TURN_TRANSITIONS: Readonly<
+  Record<TurnStatus, readonly TurnStatus[]>
+> = {
   started: ['streaming', 'failed', 'cancelled'],
   streaming: ['processing', 'failed', 'cancelled'],
   processing: ['completed', 'failed'],

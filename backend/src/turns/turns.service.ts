@@ -344,6 +344,9 @@ export class TurnsService {
       ...(turn.providerLatencyMs === undefined
         ? {}
         : { providerLatencyMs: turn.providerLatencyMs }),
+      sequence: turn.sequence,
+      startedAt: turn.startedAt,
+      targetLanguage: turn.targetLanguage,
       text: turn.finalText ?? '',
       turnId: turn.turnId,
     };

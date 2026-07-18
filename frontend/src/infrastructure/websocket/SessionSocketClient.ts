@@ -5,6 +5,7 @@ import { env } from '@infrastructure/config/env';
 interface SessionSocketHandlers {
   onConnectionChange: (connected: boolean, socket?: Socket) => void;
   onError: (message: string) => void;
+  onMessageFinal: (message: RealtimeMessageFinal) => void;
   onSessionState: () => void;
   onSttResult: (result: RealtimeSttResult) => void;
 }
@@ -18,6 +19,26 @@ export interface RealtimeSttResult {
   text: string;
   turnId: string;
   type: 'partial' | 'final';
+}
+
+export interface RealtimeMessageFinal {
+  createdAt: number;
+  latency: {
+    endToEndMs: number;
+    sttFinalMs: number;
+    translationMs: number;
+  };
+  messageId: string;
+  sequence: number;
+  sourceLanguage: 'vi' | 'en';
+  sourceText: string;
+  speaker: {
+    displayName: string;
+    participantId: string;
+  };
+  targetLanguage: 'vi' | 'en';
+  translatedText: string;
+  turnId: string;
 }
 
 export class SessionSocketClient {
@@ -73,6 +94,11 @@ export class SessionSocketClient {
       if (result !== undefined) handlers.onSttResult(result);
     });
 
+    socket.on('message.final', (payload: unknown) => {
+      const message = parseMessageFinal(payload);
+      if (message !== undefined) handlers.onMessageFinal(message);
+    });
+
     socket.connect();
   }
 
@@ -111,6 +137,50 @@ function parseSttResult(value: unknown, type: 'partial' | 'final'): RealtimeSttR
     text: payload.text,
     turnId: value.turnId,
     type
+  };
+}
+
+function parseMessageFinal(value: unknown): RealtimeMessageFinal | undefined {
+  if (!isRecord(value) || !isRecord(value.payload)) return undefined;
+  const payload = value.payload;
+  if (!isRecord(payload.speaker) || !isRecord(payload.latency)) return undefined;
+  if (
+    typeof value.turnId !== 'string' ||
+    typeof payload.messageId !== 'string' ||
+    typeof payload.sequence !== 'number' ||
+    !Number.isInteger(payload.sequence) ||
+    (payload.sourceLanguage !== 'vi' && payload.sourceLanguage !== 'en') ||
+    (payload.targetLanguage !== 'vi' && payload.targetLanguage !== 'en') ||
+    typeof payload.sourceText !== 'string' ||
+    typeof payload.translatedText !== 'string' ||
+    typeof payload.createdAt !== 'number' ||
+    typeof payload.speaker.participantId !== 'string' ||
+    typeof payload.speaker.displayName !== 'string' ||
+    typeof payload.latency.sttFinalMs !== 'number' ||
+    typeof payload.latency.translationMs !== 'number' ||
+    typeof payload.latency.endToEndMs !== 'number'
+  ) {
+    return undefined;
+  }
+
+  return {
+    createdAt: payload.createdAt,
+    latency: {
+      endToEndMs: payload.latency.endToEndMs,
+      sttFinalMs: payload.latency.sttFinalMs,
+      translationMs: payload.latency.translationMs
+    },
+    messageId: payload.messageId,
+    sequence: payload.sequence,
+    sourceLanguage: payload.sourceLanguage,
+    sourceText: payload.sourceText,
+    speaker: {
+      displayName: payload.speaker.displayName,
+      participantId: payload.speaker.participantId
+    },
+    targetLanguage: payload.targetLanguage,
+    translatedText: payload.translatedText,
+    turnId: value.turnId
   };
 }
 

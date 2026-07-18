@@ -5,7 +5,6 @@ import { SttStartTurnInput } from './stt.types';
 
 describe('MockSttProvider', () => {
   let provider: MockSttProvider;
-  let configService: ConfigService;
 
   const mockHandlers = {
     onPartial: jest.fn(),
@@ -43,7 +42,6 @@ describe('MockSttProvider', () => {
     }).compile();
 
     provider = module.get<MockSttProvider>(MockSttProvider);
-    configService = module.get<ConfigService>(ConfigService);
     provider.setEventHandlers(mockHandlers);
   });
 

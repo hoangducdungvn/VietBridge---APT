@@ -28,13 +28,14 @@ export class MockSttProvider implements StreamingSttProvider {
     this.handlers = handlers;
   }
 
-  async startTurn(input: SttStartTurnInput): Promise<void> {
+  startTurn(input: SttStartTurnInput): Promise<void> {
     this.turnStateByTurnId.set(input.turnId, {
       language: input.language,
       participantId: input.participantId,
       sessionId: input.sessionId,
       turnId: input.turnId,
     });
+    return Promise.resolve();
   }
 
   async sendAudio(input: SttSendAudioInput): Promise<void> {
@@ -60,11 +61,11 @@ export class MockSttProvider implements StreamingSttProvider {
     this.handlers.onPartial(partialResult);
   }
 
-  async finishTurn(input: SttTurnReference): Promise<void> {
+  finishTurn(input: SttTurnReference): Promise<void> {
     const state = this.turnStateByTurnId.get(input.turnId);
 
     if (!state) {
-      return;
+      return Promise.resolve();
     }
 
     if (input.turnId.includes('__ERROR__')) {
@@ -76,7 +77,7 @@ export class MockSttProvider implements StreamingSttProvider {
         turnId: state.turnId,
       });
       this.turnStateByTurnId.delete(input.turnId);
-      return;
+      return Promise.resolve();
     }
 
     const finalResult: SttFinalResult = {
@@ -92,13 +93,15 @@ export class MockSttProvider implements StreamingSttProvider {
 
     this.handlers?.onFinal(finalResult);
     this.turnStateByTurnId.delete(input.turnId);
+    return Promise.resolve();
   }
 
-  async cancelTurn(input: SttTurnReference): Promise<void> {
+  cancelTurn(input: SttTurnReference): Promise<void> {
     this.turnStateByTurnId.delete(input.turnId);
+    return Promise.resolve();
   }
 
-  async closeSession(sessionId: string): Promise<void> {
+  closeSession(sessionId: string): Promise<void> {
     for (const [turnId, state] of this.turnStateByTurnId.entries()) {
       if (state.sessionId === sessionId) {
         this.turnStateByTurnId.delete(turnId);
@@ -106,5 +109,6 @@ export class MockSttProvider implements StreamingSttProvider {
     }
 
     this.handlers?.onDisconnect({ sessionId });
+    return Promise.resolve();
   }
 }
