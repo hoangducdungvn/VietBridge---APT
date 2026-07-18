@@ -8,7 +8,9 @@ import { encodeAudioFrame } from '../src/protocol/packetizer';
 import { PROTOCOL_VERSION } from '../src/protocol/types';
 
 const GATEWAY_URL = process.env.MOCK_GATEWAY_URL || 'ws://localhost:8081';
-const WAV_PATH = path.resolve(process.cwd(), '../tests/sample_en.wav');
+const WAV_PATH = fs.existsSync(path.resolve(process.cwd(), '../tests/sample_en.wav'))
+  ? path.resolve(process.cwd(), '../tests/sample_en.wav')
+  : path.resolve(process.cwd(), '../stt/tests/sample_en.wav');
 
 function ts(): string {
   return new Date().toISOString();

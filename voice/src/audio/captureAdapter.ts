@@ -40,6 +40,9 @@ export type DeviceState =
 export interface CaptureConfig {
   /** Specific `deviceId` to capture from, or omit for the default device. */
   deviceId?: string;
+  /** Studio mode: disable browser AEC/noise-suppression/AGC and capture raw
+   *  audio. Headset-only (contract D11) — open speakers will feed back. */
+  studioMode?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -101,12 +104,13 @@ export class WebAudioCaptureAdapter {
       throw new Error(message);
     }
 
+    const processing = !config?.studioMode;
     const constraints: MediaStreamConstraints = {
       audio: {
         channelCount: 1,
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
+        echoCancellation: processing,
+        noiseSuppression: processing,
+        autoGainControl: processing,
         ...(config?.deviceId ? { deviceId: { exact: config.deviceId } } : {}),
       },
     };

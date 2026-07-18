@@ -50,6 +50,17 @@ export interface SttResultEvent {
   backend: string;
   latencyMs: number;
   utteranceId: string;
+  lowConfidence?: boolean;
+}
+
+export interface TranslationResultEvent {
+  utteranceId: string;
+  sourceText: string;
+  translatedText: string;
+  sourceLang: string;
+  targetLang: string;
+  model: string;
+  latencyMs: number;
 }
 
 export interface VoiceStreamClientEvents {
@@ -59,6 +70,7 @@ export interface VoiceStreamClientEvents {
   onThrottle?(evt: StreamThrottleEvent): void;
   onBackpressure?(evt: ErrorEvent): void;
   onSttResult?(result: SttResultEvent): void;
+  onTranslationResult?(result: TranslationResultEvent): void;
 }
 
 type EnvelopeKeys = 'protocol_version' | 'type' | 'event_id' | 'session_id' | 'stream_id' | 'source_id' | 'sent_at';
@@ -385,6 +397,7 @@ export class VoiceStreamClient {
           backend: string;
           asr_latency_ms: number;
           utterance_id: string;
+          low_confidence?: boolean;
         };
         this.events.onSttResult?.({
           type: stt.type === 'stt.final' ? 'final' : 'partial',
@@ -393,6 +406,29 @@ export class VoiceStreamClient {
           backend: stt.backend || 'auto',
           latencyMs: stt.asr_latency_ms || 0,
           utteranceId: stt.utterance_id || '',
+          lowConfidence: stt.low_confidence === true,
+        });
+        break;
+      }
+
+      case 'translation.final': {
+        const tr = message as unknown as {
+          utterance_id: string;
+          source_text: string;
+          translated_text: string;
+          source_lang: string;
+          target_lang: string;
+          model: string;
+          translation_latency_ms: number;
+        };
+        this.events.onTranslationResult?.({
+          utteranceId: tr.utterance_id || '',
+          sourceText: tr.source_text || '',
+          translatedText: tr.translated_text || '',
+          sourceLang: tr.source_lang || 'vi',
+          targetLang: tr.target_lang || 'en',
+          model: tr.model || '',
+          latencyMs: tr.translation_latency_ms || 0,
         });
         break;
       }

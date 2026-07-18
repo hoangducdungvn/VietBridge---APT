@@ -4,6 +4,31 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { decodeAudioFrame } from '../protocol/packetizer';
 import { PROTOCOL_VERSION } from '../protocol/types';
+// Translation tầng riêng: translation/ ở root repo (cùng cấp voice/, stt/, backend/)
+import { translate, normalizeLang, TranslationError } from '../../../translation/src/translator';
+import { readFileSync } from 'fs';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+// Load .env from project root
+// server.ts lives at: voice/src/mock-server/server.ts
+// project root  is at: ../../.. (3 levels up)
+try {
+  const __dir = dirname(fileURLToPath(import.meta.url));
+  const envPath = resolve(__dir, '..', '..', '..', '.env'); // voice/src/mock-server → voice/src → voice → project root
+  const lines = readFileSync(envPath, 'utf-8').split('\n');
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#') || !trimmed.includes('=')) continue;
+    const [key, ...rest] = trimmed.split('=');
+    const val = rest.join('=').trim().replace(/^["']|["']$/g, '');
+    if (key && !(key in process.env)) process.env[key.trim()] = val;
+  }
+  console.log('[ENV] Loaded .env from', envPath);
+} catch {
+  console.warn('[ENV] .env not found — relying on shell env vars');
+}
+
 
 const DEFAULT_PORT = 8081;
 const configuredPort = Number.parseInt(process.env.MOCK_GATEWAY_PORT ?? '', 10);
@@ -61,6 +86,11 @@ interface ActiveUtterance {
   pcmChunks: Int16Array[];
   langHint: string;
   lastPartialMs: number;
+  /** A partial STT request is currently in flight — skip new partial ticks
+   *  so slow responses (p95 ~3s > 1s cadence) never pile up out of order. */
+  inFlightPartial: boolean;
+  /** The final STT result has been sent — drop any late partial responses. */
+  finalized: boolean;
 }
 
 interface SessionState {
@@ -231,11 +261,16 @@ function handleTextFrame(ws: WebSocket, state: SessionState, raw: string): void 
       const speaker = evt.speaker_id as string | null;
       const vad = evt.vad as Record<string, unknown> | undefined;
 
+      // normalizeLang: 2-mic MVP has static per-source hints; "auto" is not a
+      // valid runtime value (fpt_final would silently TRANSLATE instead of
+      // transcribe without a concrete language) — anything not 'en' becomes 'vi'.
       state.activeUtterance = {
         id: uttId,
         pcmChunks: [],
-        langHint: (evt.language_hint as string) || 'auto',
+        langHint: normalizeLang(evt.language_hint as string),
         lastPartialMs: Date.now(),
+        inFlightPartial: false,
+        finalized: false,
       };
 
       log(
@@ -386,11 +421,18 @@ function handleBinaryFrame(_ws: WebSocket, state: SessionState, buffer: ArrayBuf
     );
   }
 
-  // Periodic re-decode (~1s per §20.3 / D16)
+  // Periodic re-decode (~1s per §20.3 / D16).
+  // inFlightPartial gate: never start a new partial while one is pending —
+  // STT partial p95 (~3s) exceeds the 1s cadence, and concurrent requests
+  // would resolve out of order and flash stale text on the UI.
   if (state.activeUtterance && state.activeUtterance.id === metadata.utterance_id) {
     state.activeUtterance.pcmChunks.push(_payload);
     const now = Date.now();
-    if (now - state.activeUtterance.lastPartialMs >= 1000) {
+    if (
+      !state.activeUtterance.inFlightPartial &&
+      !state.activeUtterance.finalized &&
+      now - state.activeUtterance.lastPartialMs >= 1000
+    ) {
       state.activeUtterance.lastPartialMs = now;
       callSttService(_ws, state, state.activeUtterance, false);
     }
@@ -415,6 +457,7 @@ async function callSttService(
   isFinal: boolean,
 ): Promise<void> {
   const sttUrl = process.env.STT_URL || 'http://localhost:8001/v1/transcribe';
+  if (!isFinal) utt.inFlightPartial = true;
   try {
     const totalBytes = utt.pcmChunks.reduce((acc, b) => acc + b.byteLength, 0);
     if (totalBytes === 0) return;
@@ -441,6 +484,14 @@ async function callSttService(
     }
 
     const res = (await resp.json()) as Record<string, unknown>;
+
+    // A partial that resolves after the final has been emitted is stale — drop it.
+    if (!isFinal && utt.finalized) {
+      log('[STT]', C.dim, state.sourceId, `dropped stale partial for utt=${utt.id} (final already sent)`);
+      return;
+    }
+    if (isFinal) utt.finalized = true;
+
     const tag = isFinal ? 'FINAL' : 'PARTIAL';
     const color = isFinal ? `${C.bgGreen}${C.bold}${C.white}` : `${C.green}${C.bold}`;
     const latency = res.asr_latency_ms ?? '?';
@@ -468,8 +519,60 @@ async function callSttService(
       low_confidence: res.low_confidence ?? false,
       server_time: ts(),
     });
+
+    // If final and we have text, trigger translation pipeline
+    if (isFinal && text.trim().length > 0) {
+      callTranslationService(ws, state, utt.id, text, utt.langHint).catch(() => undefined);
+    }
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     log('[STT ERROR]', C.red, state.sourceId, `Failed calling STT gateway: ${msg}`);
+  } finally {
+    if (!isFinal) utt.inFlightPartial = false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Translation — logic lives in src/translation/translator.ts; this wrapper
+// only adds gateway concerns (logging + emitting translation.final).
+// ---------------------------------------------------------------------------
+async function callTranslationService(
+  ws: WebSocket,
+  state: SessionState,
+  utteranceId: string,
+  sourceText: string,
+  langHint: string,
+): Promise<void> {
+  try {
+    const res = await translate(sourceText, langHint);
+
+    log(
+      '[TRANSLATION]',
+      `${C.magenta}${C.bold}`,
+      state.sourceId,
+      `[${res.model} | ${res.latencyMs}ms] "${res.translatedText}"`,
+    );
+
+    send(ws, {
+      protocol_version: PROTOCOL_VERSION,
+      type: 'translation.final',
+      session_id: state.sessionId,
+      stream_id: state.streamId,
+      source_id: state.sourceId,
+      utterance_id: utteranceId,
+      source_text: sourceText,
+      translated_text: res.translatedText,
+      source_lang: res.sourceLang,
+      target_lang: res.targetLang,
+      model: res.model,
+      translation_latency_ms: res.latencyMs,
+      server_time: ts(),
+    });
+  } catch (err: unknown) {
+    const detail =
+      err instanceof TranslationError
+        ? `${err.message}${err.status ? ` (HTTP ${err.status})` : ''}`
+        : String(err);
+    log('[TRANSLATION ERROR]', C.red, state.sourceId, detail);
   }
 }

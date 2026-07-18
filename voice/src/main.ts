@@ -3,6 +3,7 @@
 
 import { VoicePipeline, type VoicePipelineEvents } from './pipeline/voicePipeline';
 import { WebAudioCaptureAdapter } from './audio/captureAdapter';
+import { EnvironmentMonitor, type EnvLevel, type EnvSuggestion } from './audio/environmentMonitor';
 
 // ---------------------------------------------------------------------------
 // DOM helpers
@@ -32,11 +33,61 @@ const mBuffer      = $<HTMLDivElement>('m-buffer');
 const eventLog     = $<HTMLDivElement>('event-log');
 const transcriptDisplay = $<HTMLDivElement>('transcript-display');
 const sttBadge          = $<HTMLSpanElement>('stt-badge');
+const studioCheck       = $<HTMLInputElement>('studio-mode');
+const envLevelEl        = $<HTMLSpanElement>('env-level');
 
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
 let pipeline: VoicePipeline | null = null;
+let envMonitor: EnvironmentMonitor | null = null;
+let lastVadState = 'IDLE';
+
+// ---------------------------------------------------------------------------
+// Environment monitor UI
+// ---------------------------------------------------------------------------
+function setEnvLevelUI(level: EnvLevel, noiseFloorDbfs: number): void {
+  const map: Record<EnvLevel, [string, string]> = {
+    quiet:    ['🟢 Yên tĩnh', 'var(--green)'],
+    moderate: ['🟡 Vừa', 'var(--yellow)'],
+    noisy:    ['🔴 Ồn', 'var(--red)'],
+  };
+  const [label, color] = map[level];
+  envLevelEl.textContent = `${label} (${noiseFloorDbfs.toFixed(0)} dBFS)`;
+  envLevelEl.style.color = color;
+}
+
+function showEnvToast(s: EnvSuggestion): void {
+  document.getElementById('env-toast')?.remove();
+  const toast = document.createElement('div');
+  toast.id = 'env-toast';
+  toast.style.cssText =
+    'position: fixed; bottom: 20px; right: 20px; z-index: 1000; max-width: 340px;' +
+    'background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius);' +
+    'padding: 14px 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.5); font-size: 0.85rem;';
+  const actionLabel = s.action === 'enable_studio' ? 'Bật Studio Mode' : 'Tắt Studio Mode';
+  toast.innerHTML = `
+    <div style="margin-bottom: 10px;">${escapeHtml(s.reason)}</div>
+    <div style="display: flex; gap: 8px;">
+      <button id="env-toast-apply" style="flex: 1; padding: 6px 10px; border: none; border-radius: 6px;
+        background: var(--accent); color: #fff; cursor: pointer; font-family: var(--font);">${actionLabel}</button>
+      <button id="env-toast-dismiss" style="padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px;
+        background: transparent; color: var(--text-muted); cursor: pointer; font-family: var(--font);">Bỏ qua</button>
+    </div>`;
+  document.body.appendChild(toast);
+
+  document.getElementById('env-toast-apply')!.addEventListener('click', async () => {
+    toast.remove();
+    studioCheck.checked = s.action === 'enable_studio';
+    appendLog('ev', `🔄 Đổi mode theo gợi ý: Studio ${studioCheck.checked ? 'ON' : 'OFF'} — khởi động lại capture...`);
+    await stopPipeline();
+    await startPipeline();
+  });
+  document.getElementById('env-toast-dismiss')!.addEventListener('click', () => {
+    toast.remove();
+    envMonitor?.dismiss();
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Microphone listing
@@ -127,7 +178,14 @@ async function startPipeline(): Promise<void> {
 
   btnStart.disabled = true;
   btnStop.disabled = false;
+  studioCheck.disabled = true; // constraints can't change mid-capture; re-enabled on stop
   eventLog.innerHTML = '';
+
+  const studioMode = studioCheck.checked;
+  envMonitor = new EnvironmentMonitor(studioMode, {
+    onLevelChange: setEnvLevelUI,
+    onSuggestion: showEnvToast,
+  });
 
   const events: VoicePipelineEvents = {
     onConnectionStateChange: (state) => {
@@ -136,6 +194,7 @@ async function startPipeline(): Promise<void> {
     },
 
     onVadStateChange: (state) => {
+      lastVadState = state;
       setVadUI(state);
     },
 
@@ -158,6 +217,7 @@ async function startPipeline(): Promise<void> {
       const pct = Math.max(0, Math.min(100, ((db + 60) / 60) * 100));
       levelBar.style.width = `${pct}%`;
       snrVal.textContent = quality.estimated_snr_db.toFixed(1);
+      envMonitor?.feedLevel(db, lastVadState);
     },
 
     onUtteranceStart: (id) => {
@@ -206,6 +266,7 @@ async function startPipeline(): Promise<void> {
         partialEl.innerHTML = `⏳ <b>${escapeHtml(res.text)}</b> <span style="font-size: 0.75rem; color: var(--text-muted);">[${res.backend}]</span>`;
         transcriptDisplay.scrollTop = transcriptDisplay.scrollHeight;
       } else if (res.type === 'final') {
+        envMonitor?.feedSttFinal(res.text.trim() === '', res.lowConfidence === true);
         sttBadge.textContent = `✨ Finalized (${res.backend} | ${res.latencyMs}ms)`;
         sttBadge.style.background = 'var(--accent-glow)';
         sttBadge.style.color = 'var(--accent)';
@@ -214,14 +275,27 @@ async function startPipeline(): Promise<void> {
         if (partialEl) partialEl.remove();
 
         const finalEl = document.createElement('div');
+        finalEl.id = `utt-${res.utteranceId}`;
         finalEl.style.cssText = 'margin-bottom: 12px; padding: 12px; background: var(--surface); border-left: 4px solid var(--green); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);';
         finalEl.innerHTML = `
-          <div style="font-size: 1.15rem; font-weight: 600; color: #fff; margin-bottom: 4px;">${escapeHtml(res.text)}</div>
-          <div style="font-size: 0.75rem; color: var(--text-muted);">🏆 Finalized via <b>${res.backend}</b> (${res.language.toUpperCase()}) • Latency: <b>${res.latencyMs}ms</b></div>
+          <div style="font-size: 1.1rem; font-weight: 600; color: #fff; margin-bottom: 4px;">${escapeHtml(res.text)}</div>
+          <div style="font-size: 0.75rem; color: var(--text-muted);">🎙️ <b>${res.backend}</b> (${res.language.toUpperCase()}) • ${res.latencyMs}ms</div>
+          <div id="tr-${res.utteranceId}" style="margin-top: 8px; padding: 8px 10px; background: rgba(108,92,231,0.08); border-left: 3px solid var(--accent); border-radius: 4px; color: var(--text-muted); font-style: italic; font-size: 0.95rem;">⏳ Translating...</div>
         `;
         transcriptDisplay.appendChild(finalEl);
         transcriptDisplay.scrollTop = transcriptDisplay.scrollHeight;
       }
+    },
+
+    onTranslationResult: (res) => {
+      const trEl = document.getElementById(`tr-${res.utteranceId}`);
+      if (trEl) {
+        const flag = res.targetLang === 'en' ? '🇺🇸' : '🇻🇳';
+        trEl.style.color = 'var(--text)';
+        trEl.style.fontStyle = 'normal';
+        trEl.innerHTML = `${flag} <b>${escapeHtml(res.translatedText)}</b> <span style="font-size:0.7rem;color:var(--text-muted);">[${res.model} • ${res.latencyMs}ms]</span>`;
+      }
+      appendLog('ts', `🌐 Translation (${res.sourceLang}→${res.targetLang}): ${res.translatedText}`);
     },
   };
 
@@ -233,18 +307,20 @@ async function startPipeline(): Promise<void> {
       deviceId: micSelect.value || undefined,
       sourceId: `mic-${speakerInput.value || 'a'}`,
       participantId: `participant-${speakerInput.value || 'a'}`,
+      studioMode,
     },
     events,
   );
 
   try {
     await pipeline.start();
-    appendLog('ev', '✅ Pipeline started');
+    appendLog('ev', `✅ Pipeline started${studioMode ? ' — 🎙️ STUDIO MODE' : ''}`);
   } catch (err) {
     appendLog('err', `Pipeline start failed: ${err}`);
     pipeline = null;
     btnStart.disabled = false;
     btnStop.disabled = true;
+    studioCheck.disabled = false;
   }
 }
 
@@ -255,8 +331,13 @@ async function stopPipeline(): Promise<void> {
   appendLog('ev', '⬛ Pipeline stopped');
 
   pipeline = null;
+  envMonitor = null;
   btnStart.disabled = false;
   btnStop.disabled = true;
+  studioCheck.disabled = false;
+  document.getElementById('env-toast')?.remove();
+  envLevelEl.textContent = '—';
+  envLevelEl.style.color = 'var(--text-muted)';
 
   setConnectionUI('closed');
   setVadUI('IDLE');

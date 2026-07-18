@@ -21,6 +21,7 @@ from typing import Optional
 
 import numpy as np
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -76,15 +77,21 @@ def health_check():
 async def transcribe_http(
     file: UploadFile = File(...),
     utterance_id: str = Form(...),
-    language_hint: str = Form("auto"),
+    language_hint: str = Form("vi"),
     is_final: bool = Form(True),
     continuation_id: Optional[str] = Form(None),
 ):
-    """HTTP endpoint for P4 Ingestion Gateway `transcribe()` calls."""
+    """HTTP endpoint for P4 Ingestion Gateway `transcribe()` calls.
+
+    service.transcribe() is synchronous (requests + numpy) — it MUST run in the
+    threadpool. Calling it inline here froze the event loop for 1–3s per request,
+    serializing concurrent speakers and starving /health and the WS endpoint.
+    """
     try:
         raw_bytes = await file.read()
         audio = _bytes_to_float32_audio(raw_bytes)
-        result = service.transcribe(
+        result = await run_in_threadpool(
+            service.transcribe,
             utterance_id=utterance_id,
             audio=audio,
             language_hint=language_hint,
@@ -132,11 +139,11 @@ async def transcribe_ws(websocket: WebSocket):
                 pcm_bytes = data[4 + meta_len :]
                 audio = _bytes_to_float32_audio(pcm_bytes)
                 utt_id = meta.get("utterance_id", "unknown_utt")
-                hint = meta.get("language_hint", "auto")
+                hint = meta.get("language_hint", "vi")
                 is_final = bool(meta.get("is_final", True))
                 cont_id = meta.get("continuation_id")
 
-                res = service.transcribe(utt_id, audio, hint, is_final, cont_id)
+                res = await run_in_threadpool(service.transcribe, utt_id, audio, hint, is_final, cont_id)
                 await websocket.send_json(res)
 
             elif "text" in message and message["text"]:
@@ -146,7 +153,7 @@ async def transcribe_ws(websocket: WebSocket):
                     await websocket.send_json({"error": f"Invalid JSON text frame: {e}"})
                     continue
                 utt_id = meta.get("utterance_id", "unknown_utt")
-                hint = meta.get("language_hint", "auto")
+                hint = meta.get("language_hint", "vi")
                 is_final = bool(meta.get("is_final", True))
                 cont_id = meta.get("continuation_id")
                 audio_b64 = meta.get("audio_b64", "")
@@ -155,7 +162,7 @@ async def transcribe_ws(websocket: WebSocket):
                 else:
                     audio = np.zeros(0, dtype=np.float32)
 
-                res = service.transcribe(utt_id, audio, hint, is_final, cont_id)
+                res = await run_in_threadpool(service.transcribe, utt_id, audio, hint, is_final, cont_id)
                 await websocket.send_json(res)
 
     except WebSocketDisconnect:

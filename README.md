@@ -1,6 +1,9 @@
 # VietBridge
 
-VietBridge is organized as a small monorepo with independent frontend and backend applications.
+> **[📖 Xem Hướng Dẫn Tích Hợp Chi Tiết (Integration Guide)](./docs/integration-guide.md)**
+> Đọc hướng dẫn này để biết cách thiết lập, khởi chạy và test toàn bộ luồng âm thanh STT + Dịch thuật mới nhất trên FPT Cloud.
+
+VietBridge is organized as a monorepo containing 4 independent applications that work together to provide real-time meeting transcription and translation.
 
 ## Workspace
 
