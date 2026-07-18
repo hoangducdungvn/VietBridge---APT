@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { Socket } from 'socket.io-client';
+import { SocketIoVoiceTransport, VoicePipeline } from 'vietbridge-voice';
 import {
   GearSix,
   Microphone,
@@ -8,18 +10,20 @@ import {
   X
 } from '@phosphor-icons/react';
 import type { LanguageCode } from '@shared/types';
+import type { ParticipantSession } from '@domain/entities/BackendSession';
+import { env } from '@infrastructure/config/env';
+import type { RealtimeSttResult } from '@infrastructure/websocket/SessionSocketClient';
 
 interface MeetingRoomScreenProps {
+  activeSession: ParticipantSession;
+  realtimeError?: string;
+  realtimeStatus: 'connecting' | 'connected' | 'reconnecting' | 'error';
+  roomSocket?: Socket;
   roomName: string;
   localLanguage: LanguageCode;
   otherLanguage: LanguageCode;
+  sttResults: RealtimeSttResult[];
   onEndMeeting: () => void;
-}
-
-interface MockPhrase {
-  speakerLanguage: 'en' | 'vi';
-  en: string;
-  vi: string;
 }
 
 interface TranscriptItem {
@@ -28,29 +32,6 @@ interface TranscriptItem {
   timestamp: string;
   turn: number;
 }
-
-const mockPhrases: MockPhrase[] = [
-  {
-    speakerLanguage: 'en',
-    en: 'Good morning. Let us begin with the priorities for this quarter.',
-    vi: 'Chào buổi sáng. Hãy bắt đầu với các ưu tiên trong quý này.'
-  },
-  {
-    speakerLanguage: 'vi',
-    en: 'We need to align the delivery schedule with the client review.',
-    vi: 'Chúng ta cần thống nhất lịch bàn giao với buổi đánh giá của khách hàng.'
-  },
-  {
-    speakerLanguage: 'en',
-    en: 'The proposed timeline works, provided the final scope is approved today.',
-    vi: 'Tiến độ đề xuất phù hợp, với điều kiện phạm vi cuối cùng được duyệt hôm nay.'
-  },
-  {
-    speakerLanguage: 'vi',
-    en: 'Agreed. I will send the updated document after this meeting.',
-    vi: 'Đồng ý. Tôi sẽ gửi tài liệu cập nhật sau cuộc họp này.'
-  }
-];
 
 const languageDetails = {
   en: { name: 'English', nativeName: 'English', flag: '🇬🇧' },
@@ -191,88 +172,163 @@ function LanguagePane({
   );
 }
 
-// Demonstration meeting workspace with local mocked streaming and speaker turns.
 export function MeetingRoomScreen({
+  activeSession,
+  realtimeError,
+  realtimeStatus,
+  roomSocket,
   roomName,
   localLanguage,
   otherLanguage,
+  sttResults,
   onEndMeeting
 }: MeetingRoomScreenProps) {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [isMuted, setIsMuted] = useState(false);
+  const [isMicActive, setIsMicActive] = useState(false);
+  const [isVadSpeaking, setIsVadSpeaking] = useState(false);
   const [isEnding, setIsEnding] = useState(false);
-  const [isStreaming, setIsStreaming] = useState(true);
-  const [phraseIndex, setPhraseIndex] = useState(0);
-  const [liveCaptions, setLiveCaptions] = useState<Record<'en' | 'vi', string>>({ en: '', vi: '' });
-  const [transcripts, setTranscripts] = useState<Record<'en' | 'vi', TranscriptItem[]>>({
-    en: [],
-    vi: []
-  });
+  const [isMicStarting, setIsMicStarting] = useState(false);
+  const [voiceError, setVoiceError] = useState<string>();
+  const pipelineRef = useRef<VoicePipeline>();
+  const startRequestRef = useRef(0);
+  const autoStartEnabledRef = useRef(true);
 
-  const currentPhrase = mockPhrases[phraseIndex % mockPhrases.length];
-  const currentSpeaker = currentPhrase.speakerLanguage;
   const orderedLanguages = useMemo(
     () => [localLanguage, otherLanguage] as const,
     [localLanguage, otherLanguage]
   );
+  const liveCaptions = useMemo(() => {
+    const captions: Record<'en' | 'vi', string> = { en: '', vi: '' };
+    for (const result of sttResults) {
+      if (result.type === 'partial') captions[result.language] = result.text;
+    }
+    return captions;
+  }, [sttResults]);
+  const transcripts = useMemo(() => {
+    const grouped: Record<'en' | 'vi', TranscriptItem[]> = { en: [], vi: [] };
+    sttResults
+      .filter((result) => result.type === 'final' && result.text.trim() !== '')
+      .forEach((result, turn) => {
+        grouped[result.language].push({
+          id: result.turnId,
+          text: result.text,
+          timestamp: new Intl.DateTimeFormat('en', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+          }).format(new Date(result.receivedAt)),
+          turn
+        });
+      });
+    return grouped;
+  }, [sttResults]);
+  const remotePartial = [...sttResults]
+    .reverse()
+    .find(
+      (result) => result.type === 'partial' && result.participantId !== activeSession.participantId
+    );
+  const speakingLanguage = isVadSpeaking ? localLanguage : remotePartial?.language;
 
   useEffect(() => {
     const timer = window.setInterval(() => setElapsedSeconds((seconds) => seconds + 1), 1000);
     return () => window.clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    const sourceLanguage = currentPhrase.speakerLanguage;
-    const targetLanguage = sourceLanguage === 'en' ? 'vi' : 'en';
-    const sourceWords = currentPhrase[sourceLanguage].split(' ');
-    const targetWords = currentPhrase[targetLanguage].split(' ');
-    let wordIndex = 0;
-    let nextPhraseTimeout: number | undefined;
+  const stopMicrophone = useCallback(async (manual: boolean) => {
+    if (manual) autoStartEnabledRef.current = false;
+    startRequestRef.current += 1;
+    const pipeline = pipelineRef.current;
+    pipelineRef.current = undefined;
+    setIsMicStarting(false);
+    setIsMicActive(false);
+    setIsVadSpeaking(false);
+    await pipeline?.stop();
+  }, []);
 
-    setIsStreaming(true);
-    setLiveCaptions({ en: '', vi: '' });
+  const startMicrophone = useCallback(async () => {
+    if (pipelineRef.current) return;
+    if (!roomSocket?.connected) {
+      setVoiceError('Waiting for the realtime connection before starting the microphone.');
+      return;
+    }
 
-    const streamInterval = window.setInterval(() => {
-      wordIndex += 1;
-      const progress = wordIndex / sourceWords.length;
-      const translatedWordCount = Math.max(1, Math.ceil(targetWords.length * progress));
-      const nextSourceCaption = sourceWords.slice(0, wordIndex).join(' ');
-      const nextTargetCaption = targetWords.slice(0, translatedWordCount).join(' ');
-
-      setLiveCaptions({
-        [sourceLanguage]: nextSourceCaption,
-        [targetLanguage]: nextTargetCaption
-      } as Record<'en' | 'vi', string>);
-
-      if (wordIndex >= sourceWords.length) {
-        window.clearInterval(streamInterval);
-        setIsStreaming(false);
-        const timestamp = new Intl.DateTimeFormat('en', {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit'
-        }).format(new Date());
-
-        setTranscripts((current) => ({
-          en: [
-            ...current.en,
-            { id: `turn-${phraseIndex}-en`, text: currentPhrase.en, timestamp, turn: phraseIndex }
-          ].slice(-10),
-          vi: [
-            ...current.vi,
-            { id: `turn-${phraseIndex}-vi`, text: currentPhrase.vi, timestamp, turn: phraseIndex }
-          ].slice(-10)
-        }));
-
-        nextPhraseTimeout = window.setTimeout(() => setPhraseIndex((index) => index + 1), 1200);
+    autoStartEnabledRef.current = true;
+    const requestId = startRequestRef.current + 1;
+    startRequestRef.current = requestId;
+    setVoiceError(undefined);
+    setIsMicStarting(true);
+    const pipeline = new VoicePipeline(
+      {
+        enableSileroVad: false,
+        gatewayUrl: env.backendWsUrl,
+        languageHint: activeSession.sourceLanguage,
+        participantId: activeSession.participantId,
+        sessionId: activeSession.sessionId,
+        speakerId: activeSession.participantId,
+        transportFactory: (config, events) => new SocketIoVoiceTransport(roomSocket, config, events)
+      },
+      {
+        onError: (code, message) => {
+          if (startRequestRef.current === requestId) {
+            setVoiceError(`${code}: ${message}`);
+          }
+        },
+        onVadStateChange: (state) =>
+          setIsVadSpeaking(state === 'SPEAKING' || state === 'POSSIBLE_END')
       }
-    }, 210);
+    );
+    pipelineRef.current = pipeline;
+    try {
+      await pipeline.start();
+      if (startRequestRef.current !== requestId || pipelineRef.current !== pipeline) {
+        await pipeline.stop();
+        return;
+      }
+      setIsMicStarting(false);
+      setIsMicActive(true);
+    } catch (error: unknown) {
+      if (pipelineRef.current === pipeline) pipelineRef.current = undefined;
+      if (startRequestRef.current !== requestId) return;
+      setIsMicStarting(false);
+      setIsMicActive(false);
+      setVoiceError(error instanceof Error ? error.message : 'Unable to start microphone.');
+    }
+  }, [activeSession, roomSocket]);
 
+  useEffect(() => {
+    if (!roomSocket?.connected) {
+      if (pipelineRef.current) void stopMicrophone(false);
+      return;
+    }
+    if (autoStartEnabledRef.current) void startMicrophone();
+  }, [roomSocket, startMicrophone, stopMicrophone]);
+
+  useEffect(() => {
     return () => {
-      window.clearInterval(streamInterval);
-      if (nextPhraseTimeout) window.clearTimeout(nextPhraseTimeout);
+      startRequestRef.current += 1;
+      const pipeline = pipelineRef.current;
+      pipelineRef.current = undefined;
+      void pipeline?.stop();
     };
-  }, [currentPhrase, phraseIndex]);
+  }, []);
+
+  const toggleMicrophone = async () => {
+    if (pipelineRef.current) {
+      await stopMicrophone(true);
+      return;
+    }
+    await startMicrophone();
+  };
+
+  const connectionLabel =
+    realtimeStatus === 'connected'
+      ? 'Connected'
+      : realtimeStatus === 'reconnecting'
+        ? 'Reconnecting'
+        : realtimeStatus === 'error'
+          ? 'Connection failed'
+          : 'Connecting';
+  const visibleError = voiceError ?? realtimeError;
 
   return (
     <main className="flex min-h-[100dvh] flex-col bg-meeting-canvas text-meeting-ink lg:h-[100dvh] lg:overflow-hidden">
@@ -289,7 +345,16 @@ export function MeetingRoomScreen({
 
         <div className="order-3 flex w-full items-center justify-center gap-5 text-sm sm:order-none sm:w-auto">
           <span className="flex items-center gap-2 font-medium text-meeting-muted">
-            <span className="size-2 rounded-full bg-meeting-live" /> Connected
+            <span
+              className={`size-2 rounded-full ${
+                realtimeStatus === 'connected'
+                  ? 'bg-meeting-live'
+                  : realtimeStatus === 'error'
+                    ? 'bg-meeting-danger'
+                    : 'bg-meeting-warning'
+              }`}
+            />
+            {connectionLabel}
           </span>
           <time className="min-w-12 font-mono font-semibold tabular-nums text-meeting-ink">
             {formatDuration(elapsedSeconds)}
@@ -315,7 +380,7 @@ export function MeetingRoomScreen({
             <LanguagePane
               language={language}
               isOwnLanguage={language === localLanguage}
-              isSpeaking={isStreaming && currentSpeaker === language && !isMuted}
+              isSpeaking={speakingLanguage === language}
               speakerLabel={language === localLanguage ? 'Speaker A' : 'Speaker B'}
               liveCaption={language === 'vi' ? liveCaptions.vi : liveCaptions.en}
               transcript={language === 'vi' ? transcripts.vi : transcripts.en}
@@ -328,12 +393,18 @@ export function MeetingRoomScreen({
         <div className="flex items-center gap-4">
           <div
             className="flex h-12 w-9 items-end justify-center gap-1"
-            aria-label={isMuted ? 'Audio level muted' : 'Live audio level'}
+            aria-label={
+              isMicActive
+                ? 'Live audio level'
+                : isMicStarting
+                  ? 'Microphone starting'
+                  : 'Microphone stopped'
+            }
           >
             {[0, 1, 2, 3].map((bar) => (
               <span
                 key={bar}
-                className={`w-1.5 rounded-full bg-meeting-accent ${isMuted ? 'h-1.5 opacity-25' : 'animate-audio-level'}`}
+                className={`w-1.5 rounded-full bg-meeting-accent ${isMicActive ? 'animate-audio-level' : 'h-1.5 opacity-25'}`}
                 style={{ animationDelay: `${bar * 110}ms` }}
               />
             ))}
@@ -341,23 +412,40 @@ export function MeetingRoomScreen({
 
           <button
             type="button"
-            onClick={() => setIsMuted((muted) => !muted)}
-            aria-pressed={isMuted}
-            aria-label={isMuted ? 'Unmute microphone' : 'Mute microphone'}
+            onClick={() => void toggleMicrophone()}
+            aria-pressed={isMicActive}
+            aria-label={
+              isMicActive
+                ? 'Stop microphone'
+                : isMicStarting
+                  ? 'Cancel microphone startup'
+                  : 'Start microphone'
+            }
             className={`relative grid size-16 place-items-center rounded-full text-white shadow-panel transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-meeting-accent active:scale-[0.97] ${
-              isMuted ? 'bg-[#8793a1]' : 'bg-meeting-accent hover:bg-meeting-accentStrong'
+              isMicActive || isMicStarting
+                ? 'bg-meeting-accent hover:bg-meeting-accentStrong'
+                : 'bg-[#8793a1]'
             }`}
           >
-            {!isMuted && (
+            {isMicActive && (
               <span className="absolute inset-[-7px] animate-mic-ring rounded-full border-2 border-meeting-accent/30" />
             )}
-            {isMuted ? (
-              <MicrophoneSlash aria-hidden="true" size={27} weight="fill" />
-            ) : (
+            {isMicActive || isMicStarting ? (
               <Microphone aria-hidden="true" size={27} weight="fill" />
+            ) : (
+              <MicrophoneSlash aria-hidden="true" size={27} weight="fill" />
             )}
           </button>
         </div>
+
+        {visibleError && (
+          <p
+            role="alert"
+            className="absolute bottom-1 left-4 max-w-[42%] text-xs leading-4 text-meeting-danger"
+          >
+            {visibleError}
+          </p>
+        )}
 
         <div className="absolute right-4 sm:right-6">
           {isEnding ? (

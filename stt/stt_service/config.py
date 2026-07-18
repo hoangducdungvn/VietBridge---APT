@@ -9,10 +9,14 @@ from pathlib import Path
 
 
 def _load_dotenv() -> None:
-    """Load KEY=VALUE lines from repo-root .env (gitignored) into os.environ.
-    Real env vars win over .env values."""
-    env_file = Path(__file__).resolve().parent.parent / ".env"
-    if not env_file.is_file():
+    """Load KEY=VALUE lines from the nearest .env (gitignored) into os.environ.
+    Walks up from this file so it finds repo-root .env regardless of how deep
+    the package lives (stt/stt_service/...). Real env vars win over .env values."""
+    for parent in Path(__file__).resolve().parents:
+        env_file = parent / ".env"
+        if env_file.is_file():
+            break
+    else:
         return
     for line in env_file.read_text(encoding="utf-8").splitlines():
         line = line.strip()

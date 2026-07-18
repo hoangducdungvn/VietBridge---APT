@@ -5,17 +5,17 @@ interface RoomCardProps {
   roomId: string;
   roomName: string;
   participants: RoomParticipants;
-  onJoin: (roomId: string) => void;
+  onSelect: (roomId: string) => void;
 }
 
 const getRoomStatus = (occupancy: number) => {
-  if (occupancy === 0) return 'Empty';
+  if (occupancy === 0) return 'Available — create room';
   if (occupancy === 1) return 'Waiting for second participant';
   return 'Full';
 };
 
 // Compact room summary with two visual seats and semantic disabled behavior.
-export function RoomCard({ roomId, roomName, participants, onJoin }: RoomCardProps) {
+export function RoomCard({ roomId, roomName, participants, onSelect }: RoomCardProps) {
   const occupancy = participants.filter(Boolean).length;
   const isFull = occupancy === participants.length;
   const status = getRoomStatus(occupancy);
@@ -24,8 +24,8 @@ export function RoomCard({ roomId, roomName, participants, onJoin }: RoomCardPro
     <button
       type="button"
       disabled={isFull}
-      onClick={() => onJoin(roomId)}
-      aria-label={isFull ? `${roomName} is full` : `Join ${roomName}, ${status}`}
+      onClick={() => onSelect(roomId)}
+      aria-label={isFull ? `${roomName} is full` : `${roomName}, ${status}`}
       className={`group flex min-h-60 w-full flex-col rounded-xl border bg-white p-6 text-left shadow-[0_10px_30px_rgb(30_58_95/0.06)] transition duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-meeting-accent sm:p-7 ${
         isFull
           ? 'cursor-not-allowed border-meeting-line opacity-50'
@@ -43,7 +43,7 @@ export function RoomCard({ roomId, roomName, participants, onJoin }: RoomCardPro
             key={`${roomId}-seat-${index + 1}`}
             className={`grid size-16 place-items-center rounded-full transition-colors duration-200 ${
               participant
-                ? 'bg-meeting-accent/10 text-meeting-accent'
+                ? 'bg-meeting-accent text-white shadow-[0_8px_18px_rgb(30_58_95/0.22)]'
                 : 'bg-meeting-canvas text-[#cbd3dd]'
             }`}
           >

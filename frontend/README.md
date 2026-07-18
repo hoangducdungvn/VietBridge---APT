@@ -24,15 +24,17 @@ VietBridge is a browser-based PWA scaffold for real-time Vietnamese-English busi
 
 `src/shared` contains constants, shared types, and small utilities used across layers.
 
-## Data Flow
+## Current Session Data Flow
 
-1. `MeetingRoomView` renders meeting controls and transcript state from `useMeetingStore`.
-2. `useAudioCapture` starts the infrastructure audio repository.
-3. Audio chunks are sent through the `IAudioStreamRepository` port into application services.
-4. `TranscriptStreamService` streams audio to `ITranslationSocketRepository`.
-5. `SocketTranslationRepository` emits `audio-chunk` and listens for `transcript-partial`, `transcript-final`, and `translation-result`.
-6. Incoming DTOs are mapped into domain-friendly transcript segments.
-7. Zustand stores publish updates to the React UI.
+1. The General lobby always renders five backend-owned slots (`APT001`–`APT005`) and refreshes their real occupancy through `GET /api/rooms`; no fake participant data is used.
+2. Empty cards open the Create dialog, waiting cards open the Join dialog, and full cards are disabled. The header actions provide the same flows by room selection or code.
+3. `useSessionStore` persists `sessionId`, room code, participant identity, token, role, and language direction in `sessionStorage`.
+4. Reloading calls `GET /api/sessions/:roomCode` to restore current in-memory backend state.
+5. Waiting-room invite copy uses the Clipboard API when available and a click-driven fallback for HTTP LAN origins.
+6. Meeting audio waits for the authenticated Socket.IO connection, then requests microphone access automatically. The microphone button remains the retry/stop control.
+4. `SessionSocketClient` authenticates with `auth.accessToken` and listens for `session.state` so both browsers update presence.
+5. The meeting microphone uses VoicePipeline and the existing authenticated Socket.IO connection for `turn.start`, PCM `audio.chunk`, and `turn.end`.
+6. Backend STT partial/final results are rendered in both browsers. Translation is not implemented yet.
 
 ## Adding A New Language Pair
 
@@ -51,7 +53,28 @@ npm install
 npm run dev
 ```
 
-Copy `.env.example` to `.env.local` and point `VITE_BACKEND_WS_URL` at the streaming backend when it is available.
+Copy `.env.example` to `.env.local` and keep both backend URLs on the NestJS server for local development:
+
+```env
+VITE_BACKEND_API_URL=http://localhost:3000
+VITE_BACKEND_WS_URL=http://localhost:3000
+VITE_PUBLIC_APP_URL=http://localhost:5173
+VITE_SUPPORTED_LANGUAGES=vi,en
+```
+
+Start `backend` on port `3000` before testing create/join in two browser windows.
+
+### Test from another machine on the same Wi-Fi
+
+Vite listens on the LAN by default. Find the host machine IPv4 address with `ipconfig`, then set only the local ignored `frontend/.env` public URL:
+
+```env
+VITE_PUBLIC_APP_URL=http://192.168.1.8:5173
+```
+
+Replace `192.168.1.8` with the current host IPv4 address and restart Vite after changing `.env`. Open that LAN URL on the host before creating a room. The copied invite includes the room code and required opposite language. Backend URLs configured as localhost are automatically rewritten to the page's LAN hostname in the recipient browser.
+
+Browser microphone APIs require a secure context. `http://localhost:5173` is accepted by browsers, but a second machine opening `http://<LAN-IP>:5173` may have microphone access blocked. For a two-machine voice test, serve the frontend through trusted HTTPS or explicitly allow that development origin in the test browser; the UI now reports this condition instead of showing a false active microphone.
 
 ## Useful Scripts
 

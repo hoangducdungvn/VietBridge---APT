@@ -6,8 +6,11 @@ FPT Cloud API (`FPT.AI-whisper-large-v3-turbo`) và Groq Cloud API (`whisper-lar
 ## Setup
 
 ```bash
-pip install -r stt_service/requirements.txt
+pip install -r stt/stt_service/requirements.txt
 ```
+
+Toàn bộ code STT nằm trong `stt/` (cùng cấp với `frontend/`, `backend/`, `voice/`):
+`stt/stt_service/` (package Python), `stt/tests/` (audio mẫu), `stt/results/` (kết quả benchmark/test).
 
 Set API key (chỉ đọc từ env, **không bao giờ** hardcode/commit/log):
 
@@ -28,9 +31,9 @@ Sửa `BACKEND` trong [config.py](config.py) — `"fpt"`, `"groq"` hoặc `"auto
 ## Chạy benchmark
 
 ```bash
-cd stt_service
+cd stt/stt_service
 python benchmark.py                      # audio tổng hợp: latency thật, text rác
-python benchmark.py --wav ../tests/sample_vi.wav   # audio thật (16 kHz mono)
+python benchmark.py --wav ../tests/sample_en.wav   # audio thật (16 kHz mono)
 ```
 
 In bảng mean/p95 cho audio 3s/10s/25s, chế độ partial (timeout 5s) và final (timeout 10s), tách riêng network round-trip với backend FPT, kèm kết luận nhịp partial 1s có khả thi không.
@@ -38,9 +41,9 @@ In bảng mean/p95 cho audio 3s/10s/25s, chế độ partial (timeout 5s) và fi
 ## Chạy mock gateway
 
 ```bash
-cd stt_service
-python mock_gateway.py ../tests/sample_vi.wav        # partial mỗi 1s audio, rồi final
-python mock_gateway.py ../tests/sample_vi.wav --use-queue --realtime
+cd stt/stt_service
+python mock_gateway.py ../tests/sample_en.wav        # partial mỗi 1s audio, rồi final
+python mock_gateway.py ../tests/sample_en.wav --use-queue --realtime
 python mock_gateway.py --synth 5                     # không có WAV: smoke test
 ```
 
