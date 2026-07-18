@@ -166,6 +166,7 @@ interface SessionState {
   connectedAt: number;
   activeUtterance: ActiveUtterance | null;
   translationContext: { sourceText: string; translatedText: string }[];
+  sttWs: WebSocket | null;
 }
 
 function createSessionState(): SessionState {
@@ -182,6 +183,7 @@ function createSessionState(): SessionState {
     connectedAt: Date.now(),
     activeUtterance: null,
     translationContext: [],
+    sttWs: null,
   };
 }
 
@@ -207,6 +209,66 @@ wss.on('connection', (ws: WebSocket) => {
 
   log('[CONNECT]', `${C.bgBlue}${C.bold}${C.white}`, '', 'New client connected');
 
+  // Establish persistent connection to STT WS backend
+  const sttUrl = process.env.STT_WS_URL || 'ws://localhost:8001/ws';
+  state.sttWs = new WebSocket(sttUrl);
+  
+  state.sttWs.on('open', () => {
+    log('[STT]', C.green, state.sourceId, 'Connected to STT WebSocket');
+  });
+
+  state.sttWs.on('message', (data: Buffer) => {
+    try {
+      const msg = JSON.parse(data.toString());
+      if (msg.type === 'stt.partial' || msg.type === 'stt.final') {
+        const isFinal = msg.type === 'stt.final';
+        const tag = isFinal ? 'FINAL' : 'PARTIAL';
+        const color = isFinal ? `${C.bgGreen}${C.bold}${C.white}` : `${C.green}${C.bold}`;
+        const text = msg.text || '';
+        
+        log(
+          `[STT ${tag}]`,
+          color,
+          state.sourceId,
+          `[backend=${msg.backend} | ${msg.asr_latency_ms}ms] utt=${C.yellow}${msg.turnId}${C.reset} "${text}"`,
+        );
+
+        broadcastToSession(state.sessionId, ws, {
+          protocol_version: PROTOCOL_VERSION,
+          type: msg.type,
+          session_id: state.sessionId,
+          stream_id: state.streamId,
+          source_id: state.sourceId,
+          speaker_id: state.speakerId,
+          utterance_id: msg.turnId,
+          text: text,
+          language: msg.language,
+          backend: msg.backend,
+          asr_latency_ms: msg.asr_latency_ms,
+          low_confidence: false,
+          eou: false,
+          server_time: ts(),
+        });
+
+        if (isFinal && text.trim().length > 0) {
+          callTranslationService(ws, state, msg.turnId, text, msg.language).catch(() => undefined);
+        }
+      } else if (msg.type === 'stt.error') {
+        log('[STT ERROR]', C.red, state.sourceId, msg.error || 'Unknown STT WS Error');
+      }
+    } catch (e) {
+      log('[STT ERROR]', C.red, state.sourceId, `Failed to parse STT WS message: ${e}`);
+    }
+  });
+
+  state.sttWs.on('error', (err) => {
+    log('[STT ERROR]', C.red, state.sourceId, `STT WS Connection error: ${err.message}`);
+  });
+
+  state.sttWs.on('close', () => {
+    log('[STT]', C.dim, state.sourceId, 'STT WS Connection closed');
+  });
+
   // ------------------------------------------------------------------
   // Text frames → control events
   // ------------------------------------------------------------------
@@ -221,6 +283,9 @@ wss.on('connection', (ws: WebSocket) => {
   ws.on('close', () => {
     // Deregister from session registry
     if (state.sessionId) deregisterSession(state.sessionId, ws);
+    if (state.sttWs && state.sttWs.readyState === WebSocket.OPEN) {
+      state.sttWs.close();
+    }
 
     const elapsed = ((Date.now() - state.connectedAt) / 1000).toFixed(1);
     log(
@@ -351,6 +416,15 @@ function handleTextFrame(ws: WebSocket, state: SessionState, raw: string): void 
           `vad_engine=${vad?.engine ?? '?'} speech_prob=${vad?.speech_probability ?? '?'} ` +
           `pre_roll=${vad?.pre_roll_ms ?? 0}ms`,
       );
+      
+      // Send start_turn to STT service
+      if (state.sttWs && state.sttWs.readyState === WebSocket.OPEN) {
+        state.sttWs.send(JSON.stringify({
+          type: 'start_turn',
+          turnId: uttId,
+          language: state.activeUtterance.langHint
+        }));
+      }
       break;
     }
 
@@ -374,7 +448,12 @@ function handleTextFrame(ws: WebSocket, state: SessionState, raw: string): void 
       );
 
       if (state.activeUtterance && state.activeUtterance.id === uttId) {
-        callSttService(ws, state, state.activeUtterance, true);
+        if (state.sttWs && state.sttWs.readyState === WebSocket.OPEN) {
+          state.sttWs.send(JSON.stringify({
+            type: 'finish_turn',
+            turnId: uttId
+          }));
+        }
         state.activeUtterance = null;
       }
 
@@ -490,20 +569,13 @@ function handleBinaryFrame(_ws: WebSocket, state: SessionState, buffer: ArrayBuf
     );
   }
 
-  // Periodic re-decode (~1s per §20.3 / D16).
-  // inFlightPartial gate: never start a new partial while one is pending —
-  // STT partial p95 (~3s) exceeds the 1s cadence, and concurrent requests
-  // would resolve out of order and flash stale text on the UI.
-  if (state.activeUtterance && state.activeUtterance.id === metadata.utterance_id) {
-    state.activeUtterance.pcmChunks.push(_payload);
-    const now = Date.now();
-    if (
-      !state.activeUtterance.inFlightPartial &&
-      !state.activeUtterance.finalized &&
-      now - state.activeUtterance.lastPartialMs >= PARTIAL_CADENCE_MS
-    ) {
-      state.activeUtterance.lastPartialMs = now;
-      callSttService(_ws, state, state.activeUtterance, false);
+  // Add payload to current utterance if active and stream to WS
+  if (state.activeUtterance) {
+    const payloadView = new Int16Array(_payload);
+    state.activeUtterance.pcmChunks.push(payloadView);
+    
+    if (state.sttWs && state.sttWs.readyState === WebSocket.OPEN) {
+      state.sttWs.send(_payload);
     }
   }
 }
@@ -516,90 +588,6 @@ function send(ws: WebSocket, payload: Record<string, unknown>): void {
     const json = JSON.stringify(payload);
     ws.send(json);
     log('[REPLY]', `${C.dim}${C.green}`, '', `→ ${payload.type as string}`);
-  }
-}
-
-async function callSttService(
-  ws: WebSocket,
-  state: SessionState,
-  utt: ActiveUtterance,
-  isFinal: boolean,
-): Promise<void> {
-  const sttUrl = process.env.STT_URL || 'http://localhost:8001/v1/transcribe';
-  if (!isFinal) utt.inFlightPartial = true;
-  try {
-    const totalBytes = utt.pcmChunks.reduce((acc, b) => acc + b.byteLength, 0);
-    if (totalBytes === 0) return;
-
-    const combined = new Uint8Array(totalBytes);
-    let offset = 0;
-    for (const chunk of utt.pcmChunks) {
-      const u8 = new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength);
-      combined.set(u8, offset);
-      offset += u8.byteLength;
-    }
-
-    const form = new FormData();
-    form.append('file', new Blob([combined]), 'audio.raw');
-    form.append('utterance_id', utt.id);
-    form.append('language_hint', utt.langHint);
-    form.append('is_final', isFinal ? 'true' : 'false');
-
-    const resp = await fetch(sttUrl, { method: 'POST', body: form });
-    if (!resp.ok) {
-      const errText = await resp.text();
-      log('[STT ERROR]', C.red, state.sourceId, `HTTP ${resp.status}: ${errText}`);
-      return;
-    }
-
-    const res = (await resp.json()) as Record<string, unknown>;
-
-    // A partial that resolves after the final has been emitted is stale — drop it.
-    if (!isFinal && utt.finalized) {
-      log('[STT]', C.dim, state.sourceId, `dropped stale partial for utt=${utt.id} (final already sent)`);
-      return;
-    }
-    if (isFinal) utt.finalized = true;
-
-    const tag = isFinal ? 'FINAL' : 'PARTIAL';
-    const color = isFinal ? `${C.bgGreen}${C.bold}${C.white}` : `${C.green}${C.bold}`;
-    const latency = res.asr_latency_ms ?? '?';
-    const backend = res.backend ?? '?';
-    const text = (res.text as string) ?? '';
-
-    log(
-      `[STT ${tag}]`,
-      color,
-      state.sourceId,
-      `[backend=${backend} | ${latency}ms] utt=${C.yellow}${utt.id}${C.reset} "${text}"`,
-    );
-
-    broadcastToSession(state.sessionId, ws, {
-      protocol_version: PROTOCOL_VERSION,
-      type: isFinal ? 'stt.final' : 'stt.partial',
-      session_id: state.sessionId,
-      stream_id: state.streamId,
-      source_id: state.sourceId,
-      speaker_id: state.speakerId,
-      utterance_id: utt.id,
-      text,
-      language: res.language ?? utt.langHint,
-      backend,
-      asr_latency_ms: latency,
-      low_confidence: res.low_confidence ?? false,
-      eou: res.eou,
-      server_time: ts(),
-    });
-
-    // If final and we have text, trigger translation pipeline
-    if (isFinal && text.trim().length > 0) {
-      callTranslationService(ws, state, utt.id, text, utt.langHint).catch(() => undefined);
-    }
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    log('[STT ERROR]', C.red, state.sourceId, `Failed calling STT gateway: ${msg}`);
-  } finally {
-    if (!isFinal) utt.inFlightPartial = false;
   }
 }
 

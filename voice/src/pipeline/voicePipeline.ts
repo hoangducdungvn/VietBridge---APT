@@ -127,11 +127,11 @@ export class VoicePipeline {
     this.capture = new WebAudioCaptureAdapter();
     // Studio Mode assumes a quiet room → VAD may be more sensitive (0.65).
     // It also assumes longer monologue speaking styles, so we increase endSilenceMs
-    // to 1500ms so pauses for breath don't cut the sentence.
-    // Default mode gets 1000ms (default VadEngine config)
+    // to 3500ms so pauses for breath don't cut the sentence.
+    // Default mode gets 2500ms (default VadEngine config)
     this.vad = new VadEngine(
       this.config.studioMode
-        ? { speechStartThreshold: 0.65, endSilenceMs: 1500 }
+        ? { speechStartThreshold: 0.65, endSilenceMs: 3500 }
         : undefined
     );
   }

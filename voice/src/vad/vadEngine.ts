@@ -63,7 +63,7 @@ const DEFAULT_CONFIG: VadConfig = {
   speechEndThreshold: 0.22,     // tolerate soft syllables and room noise dips before ending
   minSpeechMs: 150,             // raised 120→150ms: filters mic pops and single clicks
   preRollMs: 400,               // raised 200→400ms: keep breath intake + leading consonants ("H" in "Hello")
-  endSilenceMs: 1000,           // balance natural pauses without making final results feel late
+  endSilenceMs: 2500,           // raised 1000->2500ms: allow natural pauses for translation context
   maxUtteranceMs: Infinity,     // user requested unlimited utterance duration
   backend: 'energy',  // R2: energy by default; loadSilero() switches to 'silero' on success
 };
