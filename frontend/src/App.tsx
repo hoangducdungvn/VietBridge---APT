@@ -8,6 +8,7 @@ import {
   SessionSocketClient,
   type RealtimeSttResult
 } from '@infrastructure/websocket/SessionSocketClient';
+import { env } from '@infrastructure/config/env';
 import { MeetingRoomScreen } from '@presentation/views/MeetingRoomScreen';
 import { RoomsLobbyScreen } from '@presentation/views/RoomsLobbyScreen';
 import { RoomWaitingScreen } from '@presentation/views/RoomWaitingScreen';
@@ -97,6 +98,19 @@ export default function App() {
     void refreshSession();
     setRealtimeError(undefined);
     setRealtimeStatus('connecting');
+
+    if (env.transport === 'ws') {
+      // ws mode: voice + results go straight to the mock gateway from
+      // MeetingRoomScreen. NestJS still owns the session lifecycle via REST,
+      // but its Socket.IO gateway is a stub — poll instead of subscribing
+      // (creator needs to see the guest join to move waiting → meeting).
+      const pollId = window.setInterval(() => void refreshSession(), 2_500);
+      return () => {
+        cancelled = true;
+        window.clearInterval(pollId);
+      };
+    }
+
     socketClient.connect(activeSession, {
       onConnectionChange: (connected, socket) => {
         setRoomSocket(connected ? socket : undefined);

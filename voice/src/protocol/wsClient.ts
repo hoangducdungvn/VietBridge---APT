@@ -51,6 +51,10 @@ export interface SttResultEvent {
   latencyMs: number;
   utteranceId: string;
   lowConfidence?: boolean;
+  /** Attribution — gateway fan-outs results of BOTH speakers to every client
+   *  in the session; use these to route the bubble to the right pane. */
+  sourceId?: string;
+  speakerId?: string | null;
 }
 
 export interface TranslationResultEvent {
@@ -61,6 +65,14 @@ export interface TranslationResultEvent {
   targetLang: string;
   model: string;
   latencyMs: number;
+  /** Attribution — see SttResultEvent. */
+  sourceId?: string;
+  speakerId?: string | null;
+}
+
+export interface SttErrorEvent {
+  utteranceId: string | null;
+  message: string;
 }
 
 export interface VoiceStreamClientEvents {
@@ -71,6 +83,9 @@ export interface VoiceStreamClientEvents {
   onBackpressure?(evt: ErrorEvent): void;
   onSttResult?(result: SttResultEvent): void;
   onTranslationResult?(result: TranslationResultEvent): void;
+  /** STT backend failed mid-utterance — no stt.final will follow; the UI
+   *  should drop any stuck live-partial for that utterance. */
+  onSttError?(evt: SttErrorEvent): void;
 }
 
 type EnvelopeKeys = 'protocol_version' | 'type' | 'event_id' | 'session_id' | 'stream_id' | 'source_id' | 'sent_at';
@@ -398,6 +413,8 @@ export class VoiceStreamClient {
           asr_latency_ms: number;
           utterance_id: string;
           low_confidence?: boolean;
+          source_id?: string;
+          speaker_id?: string | null;
         };
         this.events.onSttResult?.({
           type: stt.type === 'stt.final' ? 'final' : 'partial',
@@ -407,6 +424,17 @@ export class VoiceStreamClient {
           latencyMs: stt.asr_latency_ms || 0,
           utteranceId: stt.utterance_id || '',
           lowConfidence: stt.low_confidence === true,
+          sourceId: stt.source_id,
+          speakerId: stt.speaker_id ?? null,
+        });
+        break;
+      }
+
+      case 'stt.error': {
+        const err = message as unknown as { utterance_id?: string | null; message?: string };
+        this.events.onSttError?.({
+          utteranceId: err.utterance_id ?? null,
+          message: err.message || 'stt_error',
         });
         break;
       }
@@ -420,6 +448,8 @@ export class VoiceStreamClient {
           target_lang: string;
           model: string;
           translation_latency_ms: number;
+          source_id?: string;
+          speaker_id?: string | null;
         };
         this.events.onTranslationResult?.({
           utteranceId: tr.utterance_id || '',
@@ -429,6 +459,8 @@ export class VoiceStreamClient {
           targetLang: tr.target_lang || 'en',
           model: tr.model || '',
           latencyMs: tr.translation_latency_ms || 0,
+          sourceId: tr.source_id,
+          speakerId: tr.speaker_id ?? null,
         });
         break;
       }

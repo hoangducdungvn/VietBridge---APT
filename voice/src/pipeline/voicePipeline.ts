@@ -27,6 +27,7 @@ import {
   type VoiceStreamClientEvents,
   type ConnectionState,
   type SttResultEvent,
+  type SttErrorEvent,
   type TranslationResultEvent,
 } from "../protocol/wsClient";
 import type {
@@ -82,6 +83,8 @@ export interface VoicePipelineEvents {
   onAcked?(sequence: number): void;
   onSttResult?(result: SttResultEvent): void;
   onTranslationResult?(result: TranslationResultEvent): void;
+  /** STT backend died mid-utterance — no stt.final will follow for it. */
+  onSttError?(evt: SttErrorEvent): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -240,6 +243,9 @@ export class VoicePipeline {
       },
       onTranslationResult: (res) => {
         this.events.onTranslationResult?.(res);
+      },
+      onSttError: (evt) => {
+        this.events.onSttError?.(evt);
       },
     };
 

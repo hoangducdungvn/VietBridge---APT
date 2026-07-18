@@ -20,6 +20,19 @@ export interface RealtimeSttResult {
   type: 'partial' | 'final';
 }
 
+/** Finalized translation of one utterance — rendered in the TARGET-language
+ *  pane. Produced by the ws transport today; the Socket.IO gateway can emit
+ *  the same shape once NestJS realtime lands. */
+export interface RealtimeTranslationResult {
+  participantId: string;
+  receivedAt: number;
+  sourceLang: 'vi' | 'en';
+  sourceText: string;
+  targetLang: 'vi' | 'en';
+  translatedText: string;
+  turnId: string;
+}
+
 export class SessionSocketClient {
   private socket?: Socket;
 

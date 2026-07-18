@@ -14,6 +14,10 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
-    setupFiles: './tests/setup.ts'
+    setupFiles: './tests/setup.ts',
+    // Tests exercise the legacy socketio path by default; .env*.local files
+    // (dev machines set VITE_TRANSPORT=ws there) must not leak into the suite.
+    // The ws path is covered explicitly by MeetingRoomScreen.wsmode.test.tsx.
+    env: { VITE_TRANSPORT: 'socketio' }
   }
 });

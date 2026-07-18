@@ -61,6 +61,9 @@ function lastWords(text: string, maxWords: number): string {
   return cleaned.split(/\s+/).slice(-maxWords).join(' ');
 }
 
+/** Tail ends mid-enumeration: a comma/colon/dash, or a bare number ("1, 2, 3"). */
+const ENUMERATION_TAIL = /(?:[,;:\-–]|\b\d+[.,]?)\s*$/u;
+
 /** Pure tier decision from a transcript tail — unit-testable without audio. */
 export function classifyTail(tailText: string): 'extended' | 'short' | 'default' {
   const text = tailText.trim();
@@ -71,6 +74,10 @@ export function classifyTail(tailText: string): 'extended' | 'short' | 'default'
   if (CONNECTIVE_TAILS.includes(tail2) || CONNECTIVE_TAILS.includes(tail1)) {
     return 'extended';
   }
+  // Enumerations ("1, 2, 3, …" / "thứ nhất,") pause between items — keep the
+  // turn open. Checked before terminal punctuation: "3." mid-count is not an
+  // end of sentence.
+  if (ENUMERATION_TAIL.test(text)) return 'extended';
   if (TERMINAL_PUNCTUATION.test(text)) return 'short';
   return 'default';
 }

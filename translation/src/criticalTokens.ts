@@ -31,8 +31,14 @@ export function protectCriticalValues(sourceText: string): ProtectedText {
 
 /** Restore protected values. Whitespace is tolerated in case a model reformats a marker. */
 export function restoreCriticalValues(translatedText: string, tokens: readonly string[]): string {
-  return tokens.reduce((text, value, index) => {
+  const restored = tokens.reduce((text, value, index) => {
     const marker = new RegExp(String.raw`\[\[\s*VB_VALUE_${index}\s*\]\]`, 'g');
     return text.replace(marker, value);
   }, translatedText);
+  // Any marker still present is either hallucinated by the model or out of
+  // range — leaking "[[VB_VALUE_1]]" to the reader is worse than dropping it.
+  return restored
+    .replace(/\[\[\s*VB_VALUE_\d+\s*\]\]/g, '')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
 }

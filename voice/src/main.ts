@@ -256,10 +256,13 @@ async function startPipeline(): Promise<void> {
         sttBadge.style.background = 'var(--green-glow)';
         sttBadge.style.color = 'var(--green)';
 
-        let partialEl = document.getElementById('live-partial');
+        // One live box PER utterance — with session fan-out, two speakers'
+        // partials arrive interleaved and must not overwrite each other.
+        let partialEl = document.getElementById(`live-partial-${res.utteranceId}`);
         if (!partialEl) {
           partialEl = document.createElement('div');
-          partialEl.id = 'live-partial';
+          partialEl.id = `live-partial-${res.utteranceId}`;
+          partialEl.className = 'live-partial';
           partialEl.style.cssText = 'padding: 10px; border: 1px dashed var(--blue); border-radius: 6px; color: var(--blue); margin-bottom: 8px; font-style: italic;';
           transcriptDisplay.appendChild(partialEl);
         }
@@ -271,8 +274,15 @@ async function startPipeline(): Promise<void> {
         sttBadge.style.background = 'var(--accent-glow)';
         sttBadge.style.color = 'var(--accent)';
 
-        const partialEl = document.getElementById('live-partial');
-        if (partialEl) partialEl.remove();
+        document.getElementById(`live-partial-${res.utteranceId}`)?.remove();
+
+        // Empty final (silence / hallucination-suppressed / wrong-language
+        // hint) — nothing to show, and the gateway never translates it: an
+        // empty bubble would sit on "Translating…" forever.
+        if (res.text.trim() === '') {
+          appendLog('ts', `∅ Final rỗng (utt=${res.utteranceId.slice(0, 8)}, ${res.backend}) — bỏ qua`);
+          return;
+        }
 
         const finalEl = document.createElement('div');
         finalEl.id = `utt-${res.utteranceId}`;
@@ -284,6 +294,15 @@ async function startPipeline(): Promise<void> {
         `;
         transcriptDisplay.appendChild(finalEl);
         transcriptDisplay.scrollTop = transcriptDisplay.scrollHeight;
+      }
+    },
+
+    onSttError: (evt) => {
+      appendLog('err', `STT error (utt=${evt.utteranceId ?? '?'}): ${evt.message}`);
+      if (evt.utteranceId) {
+        document.getElementById(`live-partial-${evt.utteranceId}`)?.remove();
+      } else {
+        document.querySelectorAll('.live-partial').forEach((el) => el.remove());
       }
     },
 
@@ -302,6 +321,9 @@ async function startPipeline(): Promise<void> {
   pipeline = new VoicePipeline(
     {
       gatewayUrl: wsUrlInput.value || 'ws://localhost:8081',
+      // Shared session so multiple debug tabs land in the same gateway room
+      // and receive each other's results (fan-out). Override: ?session=xyz
+      sessionId: new URLSearchParams(window.location.search).get('session') ?? 'ses-debug-room',
       speakerId: speakerInput.value || 'speaker-a',
       languageHint: (langSelect.value as 'vi' | 'en' | 'auto') || 'vi',
       deviceId: micSelect.value || undefined,

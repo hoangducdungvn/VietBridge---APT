@@ -204,6 +204,11 @@ async def transcribe_ws_turns(websocket: WebSocket):
     cadence_s = 1.0
 
     async def periodic_partial() -> None:
+        # Noisy mics can hold a turn open for many seconds while the ASR keeps
+        # returning "" (noise, or wrong-language hint). Back the cadence off on
+        # an empty streak so a stuck turn doesn't burn 1-2 API calls/second;
+        # any non-empty result snaps it back to the requested cadence.
+        empty_streak = 0
         try:
             while turn_active:
                 start_tick = asyncio.get_event_loop().time()
@@ -215,6 +220,7 @@ async def transcribe_ws_turns(websocket: WebSocket):
                                 service.transcribe, turn_id, audio, language_hint, False, None
                             )
                             if res:
+                                empty_streak = 0 if res.get("text", "").strip() else empty_streak + 1
                                 await websocket.send_json({
                                     "type": "stt.partial",
                                     "turnId": turn_id,
@@ -228,8 +234,9 @@ async def transcribe_ws_turns(websocket: WebSocket):
                         except Exception as e:
                             logger.error("Error in periodic partial: %s", e)
                 # Cadence comes from the gateway's start_turn (PARTIAL_CADENCE_MS)
+                multiplier = 4.0 if empty_streak >= 6 else 2.0 if empty_streak >= 3 else 1.0
                 elapsed = asyncio.get_event_loop().time() - start_tick
-                await asyncio.sleep(max(0.1, cadence_s - elapsed))
+                await asyncio.sleep(max(0.1, cadence_s * multiplier - elapsed))
         except asyncio.CancelledError:
             pass
 

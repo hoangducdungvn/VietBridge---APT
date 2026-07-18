@@ -12,7 +12,10 @@ import {
 import type { LanguageCode } from '@shared/types';
 import type { ParticipantSession } from '@domain/entities/BackendSession';
 import { env } from '@infrastructure/config/env';
-import type { RealtimeSttResult } from '@infrastructure/websocket/SessionSocketClient';
+import type {
+  RealtimeSttResult,
+  RealtimeTranslationResult
+} from '@infrastructure/websocket/SessionSocketClient';
 
 interface MeetingRoomScreenProps {
   activeSession: ParticipantSession;
@@ -31,6 +34,11 @@ interface TranscriptItem {
   text: string;
   timestamp: string;
   turn: number;
+  /** 'translation' items carry the other speaker's words rendered in THIS
+   *  pane's language; they get a small "Translated" tag. */
+  kind: 'stt' | 'translation';
+  /** Epoch ms — merges stt + translation items in arrival order. */
+  sortKey: number;
 }
 
 const languageDetails = {
@@ -142,9 +150,18 @@ function LanguagePane({
               <article
                 key={item.id}
                 className={`max-w-[92%] rounded-xl px-4 py-3 ${
-                  item.turn % 2 === 0 ? 'bg-meeting-canvas' : 'bg-meeting-accent/[0.07]'
+                  item.kind === 'translation'
+                    ? 'border border-meeting-accent/25 bg-meeting-accent/[0.05]'
+                    : item.turn % 2 === 0
+                      ? 'bg-meeting-canvas'
+                      : 'bg-meeting-accent/[0.07]'
                 }`}
               >
+                {item.kind === 'translation' && (
+                  <span className="mb-1 inline-flex items-center gap-1 rounded-md bg-meeting-accent/10 px-2 py-0.5 text-xs font-semibold text-meeting-accent">
+                    <Translate aria-hidden="true" size={12} weight="bold" /> Translated
+                  </span>
+                )}
                 <p className="text-base leading-7 text-meeting-ink">{item.text}</p>
                 <time className="mt-2 block text-xs font-medium text-meeting-muted">
                   {item.timestamp}
@@ -204,9 +221,16 @@ export function MeetingRoomScreen({
   const [isEnding, setIsEnding] = useState(false);
   const [isMicStarting, setIsMicStarting] = useState(false);
   const [voiceError, setVoiceError] = useState<string>();
+  // ws transport: results arrive through the VoicePipeline callbacks instead
+  // of the (stubbed) NestJS Socket.IO gateway that feeds the sttResults prop.
+  const [wsSttResults, setWsSttResults] = useState<RealtimeSttResult[]>([]);
+  const [translations, setTranslations] = useState<RealtimeTranslationResult[]>([]);
+  const [wsConnectionState, setWsConnectionState] = useState<string>('connecting');
   const pipelineRef = useRef<VoicePipeline>();
   const startRequestRef = useRef(0);
   const autoStartEnabledRef = useRef(true);
+  const transportMode = env.transport;
+  const results = transportMode === 'ws' ? wsSttResults : sttResults;
 
   const orderedLanguages = useMemo(
     () => [localLanguage, otherLanguage] as const,
@@ -214,30 +238,51 @@ export function MeetingRoomScreen({
   );
   const liveCaptions = useMemo(() => {
     const captions: Record<'en' | 'vi', string> = { en: '', vi: '' };
-    for (const result of sttResults) {
+    for (const result of results) {
       if (result.type === 'partial') captions[result.language] = result.text;
     }
     return captions;
-  }, [sttResults]);
+  }, [results]);
   const transcripts = useMemo(() => {
+    const timeFormat = new Intl.DateTimeFormat('en', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
     const grouped: Record<'en' | 'vi', TranscriptItem[]> = { en: [], vi: [] };
-    sttResults
+    results
       .filter((result) => result.type === 'final' && result.text.trim() !== '')
-      .forEach((result, turn) => {
+      .forEach((result) => {
         grouped[result.language].push({
           id: result.turnId,
           text: result.text,
-          timestamp: new Intl.DateTimeFormat('en', {
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit'
-          }).format(new Date(result.receivedAt)),
-          turn
+          timestamp: timeFormat.format(new Date(result.receivedAt)),
+          turn: 0,
+          kind: 'stt',
+          sortKey: result.receivedAt
         });
       });
+    // Translations land in the TARGET-language pane: A speaks VI → the EN
+    // reader finds A's words, translated, in their own pane.
+    translations.forEach((tr) => {
+      grouped[tr.targetLang].push({
+        id: `tr-${tr.turnId}`,
+        text: tr.translatedText,
+        timestamp: timeFormat.format(new Date(tr.receivedAt)),
+        turn: 0,
+        kind: 'translation',
+        sortKey: tr.receivedAt
+      });
+    });
+    for (const language of ['en', 'vi'] as const) {
+      grouped[language].sort((a, b) => a.sortKey - b.sortKey);
+      grouped[language].forEach((item, index) => {
+        item.turn = index;
+      });
+    }
     return grouped;
-  }, [sttResults]);
-  const remotePartial = [...sttResults]
+  }, [results, translations]);
+  const remotePartial = [...results]
     .reverse()
     .find(
       (result) => result.type === 'partial' && result.participantId !== activeSession.participantId
@@ -262,9 +307,15 @@ export function MeetingRoomScreen({
 
   const startMicrophone = useCallback(async () => {
     if (pipelineRef.current) return;
-    if (!roomSocket?.connected) {
-      setVoiceError('Waiting for the realtime connection before starting the microphone.');
-      return;
+    // socketio mode needs the NestJS room socket; ws mode talks straight to
+    // the mock gateway and must NOT be gated on it (NestJS realtime is a stub).
+    let socketForTransport: Socket | undefined;
+    if (transportMode !== 'ws') {
+      if (!roomSocket?.connected) {
+        setVoiceError('Waiting for the realtime connection before starting the microphone.');
+        return;
+      }
+      socketForTransport = roomSocket;
     }
 
     autoStartEnabledRef.current = true;
@@ -275,12 +326,17 @@ export function MeetingRoomScreen({
     const pipeline = new VoicePipeline(
       {
         enableSileroVad: true,
-        gatewayUrl: env.backendWsUrl,
+        gatewayUrl: transportMode === 'ws' ? env.mockGatewayUrl : env.backendWsUrl,
         languageHint: activeSession.sourceLanguage,
         participantId: activeSession.participantId,
         sessionId: activeSession.sessionId,
         speakerId: activeSession.participantId,
-        transportFactory: (config, events) => new SocketIoVoiceTransport(roomSocket, config, events)
+        ...(socketForTransport
+          ? {
+              transportFactory: (config, events) =>
+                new SocketIoVoiceTransport(socketForTransport, config, events)
+            }
+          : {})
       },
       {
         onError: (code, message) => {
@@ -289,7 +345,55 @@ export function MeetingRoomScreen({
           }
         },
         onVadStateChange: (state) =>
-          setIsVadSpeaking(state === 'SPEAKING' || state === 'POSSIBLE_END')
+          setIsVadSpeaking(state === 'SPEAKING' || state === 'POSSIBLE_END'),
+        onConnectionStateChange: (state) => setWsConnectionState(state),
+        onSttResult: (res) => {
+          if (transportMode !== 'ws') return;
+          const mapped: RealtimeSttResult = {
+            backend: res.backend,
+            language: res.language === 'en' ? 'en' : 'vi',
+            participantId: res.speakerId ?? res.sourceId ?? 'unknown',
+            providerLatencyMs: res.latencyMs,
+            receivedAt: Date.now(),
+            text: res.text,
+            turnId: res.utteranceId,
+            type: res.type
+          };
+          setWsSttResults((current) => {
+            const withoutSamePartial = current.filter(
+              (item) => !(item.turnId === mapped.turnId && item.type === 'partial')
+            );
+            return [...withoutSamePartial, mapped].slice(-30);
+          });
+        },
+        onTranslationResult: (res) => {
+          if (transportMode !== 'ws') return;
+          setTranslations((current) =>
+            [
+              ...current,
+              {
+                participantId: res.speakerId ?? res.sourceId ?? 'unknown',
+                receivedAt: Date.now(),
+                sourceLang: res.sourceLang === 'en' ? ('en' as const) : ('vi' as const),
+                sourceText: res.sourceText,
+                targetLang: res.targetLang === 'vi' ? ('vi' as const) : ('en' as const),
+                translatedText: res.translatedText,
+                turnId: res.utteranceId
+              }
+            ].slice(-30)
+          );
+        },
+        onSttError: (evt) => {
+          if (transportMode !== 'ws') return;
+          // No stt.final will follow — drop the stuck live partial(s).
+          setWsSttResults((current) =>
+            current.filter(
+              (item) =>
+                item.type !== 'partial' ||
+                (evt.utteranceId !== null && item.turnId !== evt.utteranceId)
+            )
+          );
+        }
       }
     );
     pipelineRef.current = pipeline;
@@ -311,12 +415,17 @@ export function MeetingRoomScreen({
   }, [activeSession, roomSocket]);
 
   useEffect(() => {
+    if (transportMode === 'ws') {
+      // Pipeline owns its own WS (with reconnect) — no room socket involved.
+      if (autoStartEnabledRef.current) void startMicrophone();
+      return;
+    }
     if (!roomSocket?.connected) {
       if (pipelineRef.current) void stopMicrophone(false);
       return;
     }
     if (autoStartEnabledRef.current) void startMicrophone();
-  }, [roomSocket, startMicrophone, stopMicrophone]);
+  }, [roomSocket, startMicrophone, stopMicrophone, transportMode]);
 
   useEffect(() => {
     return () => {
@@ -335,15 +444,27 @@ export function MeetingRoomScreen({
     await startMicrophone();
   };
 
+  // In ws mode the header reflects the pipeline's own gateway connection;
+  // the NestJS realtime status is meaningless there (stub gateway).
+  const effectiveStatus: 'connecting' | 'connected' | 'reconnecting' | 'error' =
+    transportMode === 'ws'
+      ? wsConnectionState === 'connected' || wsConnectionState === 'throttled'
+        ? 'connected'
+        : wsConnectionState === 'reconnecting'
+          ? 'reconnecting'
+          : wsConnectionState === 'closed'
+            ? 'error'
+            : 'connecting'
+      : realtimeStatus;
   const connectionLabel =
-    realtimeStatus === 'connected'
+    effectiveStatus === 'connected'
       ? 'Connected'
-      : realtimeStatus === 'reconnecting'
+      : effectiveStatus === 'reconnecting'
         ? 'Reconnecting'
-        : realtimeStatus === 'error'
+        : effectiveStatus === 'error'
           ? 'Connection failed'
           : 'Connecting';
-  const visibleError = voiceError ?? realtimeError;
+  const visibleError = voiceError ?? (transportMode === 'ws' ? undefined : realtimeError);
 
   return (
     <main className="flex min-h-[100dvh] flex-col bg-meeting-canvas text-meeting-ink lg:h-[100dvh] lg:overflow-hidden">
@@ -362,9 +483,9 @@ export function MeetingRoomScreen({
           <span className="flex items-center gap-2 font-medium text-meeting-muted">
             <span
               className={`size-2 rounded-full ${
-                realtimeStatus === 'connected'
+                effectiveStatus === 'connected'
                   ? 'bg-meeting-live'
-                  : realtimeStatus === 'error'
+                  : effectiveStatus === 'error'
                     ? 'bg-meeting-danger'
                     : 'bg-meeting-warning'
               }`}

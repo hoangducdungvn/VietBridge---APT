@@ -19,6 +19,17 @@ const cases: Array<[string, 'extended' | 'short' | 'default']> = [
   ['Doanh thu tăng 20%!', 'short'],
   ['Bạn nghĩ sao?', 'short'],
   ['He said "we are done."', 'short'],
+  // Enumeration tails → extended (pauses between counted items must not cut)
+  ['1, 2, 3,', 'extended'],
+  ['1, 2, 3', 'extended'],
+  ['một, hai, ba,', 'extended'], // word-numbers rely on the trailing comma;
+  // a bare word-number tail ("bốn") is deliberately NOT matched — "năm" is
+  // both "five" and "year", far too ambiguous as an enumeration signal.
+  ['một, hai, ba, bốn', 'default'],
+  ['các mục sau:', 'extended'],
+  ['thứ nhất là chi phí -', 'extended'],
+  // But a number ending a normal sentence with terminal punct stays short
+  ['Doanh thu đạt 20 tỷ.', 'short'],
   // No signal → default
   ['', 'default'],
   ['doanh thu quý này tăng hai mươi phần trăm', 'default'],

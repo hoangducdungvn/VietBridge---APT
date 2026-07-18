@@ -67,13 +67,22 @@ export async function translate(
   const sourceLang = normalizeLang(sourceLangHint);
   const targetLang: TranslateLang = sourceLang === 'vi' ? 'en' : 'vi';
   const protectedSource = protectCriticalValues(sourceText);
-  const systemPrompt = buildTranslationSystemPrompt(sourceLang, targetLang);
+  const systemPrompt = buildTranslationSystemPrompt(
+    sourceLang,
+    targetLang,
+    protectedSource.tokens.length,
+  );
   const userPrompt = buildTranslationUserPrompt(sourceLang, protectedSource.text, config.context);
-  
+
   // Meeting utterances are short. A bounded dynamic budget reduces generation
   // scheduling cost while leaving enough room for Vietnamese expansion.
+  // Each [[VB_VALUE_n]] marker the model must echo costs ~8-10 LLM tokens —
+  // without this term a counted list ("1, 2, …, 10") gets truncated mid-output.
   const sourceWordCount = protectedSource.text.trim().split(/\s+/).length;
-  const maxTokens = Math.min(160, Math.max(48, sourceWordCount * 3));
+  const maxTokens = Math.min(
+    400,
+    Math.max(48, sourceWordCount * 3 + protectedSource.tokens.length * 10),
+  );
 
   const t0 = Date.now();
   const controller = new AbortController();
