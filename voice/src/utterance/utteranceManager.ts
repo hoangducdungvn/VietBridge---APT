@@ -102,7 +102,9 @@ export class UtteranceManager {
    * Creates a new {@link UtteranceInfo}, fires `onUtteranceStart`, and begins
    * collecting quality samples.
    */
-  handleSpeechStart(event: VadEvent, currentSequence: number): void {
+  handleSpeechStart(event: VadEvent, currentSequence: number, forceContinuation = false): void {
+    if (this.current && !forceContinuation) return;
+
     const utteranceId = uuidv4();
 
     // If there is an active continuation chain (max_duration split in
@@ -170,7 +172,7 @@ export class UtteranceManager {
       });
 
       // Immediately open a new utterance as continuation.
-      this.handleSpeechStart(event, currentSequence);
+      this.handleSpeechStart(event, currentSequence, true);
     } else {
       // Normal silence-based end — close and clear continuation.
       this.closeUtterance(reason, event.timestampMs, currentSequence, {

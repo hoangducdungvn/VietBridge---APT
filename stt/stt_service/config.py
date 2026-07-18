@@ -111,9 +111,9 @@ HIGHPASS_CUTOFF_HZ = 80.0
 # backend-side safety signal while keeping the old transcribe contract intact.
 EOU_ENABLED = os.environ.get("STT_EOU_ENABLED", "true").strip().lower() not in ("0", "false", "no", "off")
 EOU_FRAME_MS = int(os.environ.get("STT_EOU_FRAME_MS", "20"))
-EOU_END_SILENCE_MS = int(os.environ.get("STT_EOU_END_SILENCE_MS", "600"))
+EOU_END_SILENCE_MS = int(os.environ.get("STT_EOU_END_SILENCE_MS", "700"))
 EOU_MIN_SPEECH_MS = int(os.environ.get("STT_EOU_MIN_SPEECH_MS", "160"))
-EOU_MAX_UTTERANCE_MS = int(os.environ.get("STT_EOU_MAX_UTTERANCE_MS", "25000"))
+EOU_MAX_UTTERANCE_MS = int(os.environ.get("STT_EOU_MAX_UTTERANCE_MS", "15000"))
 EOU_SPEECH_RMS = float(os.environ.get("STT_EOU_SPEECH_RMS", str(SILENCE_RMS)))
 EOU_SPEECH_PEAK = float(os.environ.get("STT_EOU_SPEECH_PEAK", str(SILENCE_PEAK)))
 

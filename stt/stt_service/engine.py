@@ -242,9 +242,19 @@ class GroqEngine(ASREngine):
         # English proper nouns and technical terms to pass through correctly.
         hint_clean = (language_hint or "").strip().lower().split("-")[0]
         if hint_clean == "vi":
-            form["prompt"] = "Xin chào. Đây là cuộc hội thoại tiếng Việt."
+            form["prompt"] = (
+                "Đây là cuộc họp kinh doanh Việt-Anh. Các thuật ngữ có thể gồm "
+                "KPI, OKR, ROI, EBITDA, MOU, NDA, SaaS, B2B, B2C, CRM, ERP, "
+                "doanh thu, lợi nhuận, dòng tiền, thị phần, định giá, ngân sách, "
+                "phần trăm, triệu, tỷ, đô la Mỹ và đô la Singapore."
+            )
         elif hint_clean == "en":
-            form["prompt"] = "Hello. This is an English conversation."
+            form["prompt"] = (
+                "This is a Vietnamese-English business meeting. Terms may include "
+                "KPI, OKR, ROI, EBITDA, MOU, NDA, SaaS, B2B, B2C, CRM, ERP, "
+                "revenue, profit, cash flow, market share, valuation, budget, "
+                "percent, million, billion, US dollars, and Singapore dollars."
+            )
         # For "auto" or unknown: no prompt — let Whisper detect freely.
         files = {"file": ("utterance.wav", wav_bytes, "audio/wav")}
         try:

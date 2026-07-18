@@ -1,0 +1,5 @@
+2026-07-18 21:59:59,117 stt_service.server INFO Starting STT Service Gateway on http://127.0.0.1:8001
+INFO:     Started server process [23396]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8001 (Press CTRL+C to quit)
