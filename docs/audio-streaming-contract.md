@@ -7,7 +7,7 @@
 
 ## Changelog
 
-- **1.4** - Cập nhật kiến trúc xử lý Audio: Chuyển High-pass filter (80Hz) và Peak Normalization sang phía Backend (STT Service) để tối ưu chất lượng đầu vào cho Whisper, giảm tải cho Client. Tinh chỉnh các ngưỡng VAD mặc định (speechStart: 0.70, endSilenceMs: 450) để cắt câu nhanh hơn.
+- **1.4** - Cập nhật kiến trúc xử lý Audio: Chuyển High-pass filter (80Hz) và Peak Normalization sang phía Backend (STT Service) để tối ưu chất lượng đầu vào cho Whisper, giảm tải cho Client. Tinh chỉnh các ngưỡng VAD mặc định (speechStart: 0.70, endSilenceMs: 450) để cắt câu nhanh hơn. Bổ sung theo kiểm chứng thực tế 2026-07-17/18 (wire format KHÔNG đổi, `protocol_version` giữ `1.3`): (a) chốt **dual-model STT** trên FPT Cloud — partial VI dùng `FPT.AI-whisper-large-v3-turbo` (fine-tune, VI-only), final và mọi request EN dùng `whisper-large-v3-turbo` bản gốc (§20.4 mới); (b) `language_hint: "auto"` loại khỏi vận hành, mọi hint chuẩn hóa về `vi`/`en` (§8.2); (c) nhịp partial đổi từ "mỗi ~1s cố định" sang **tự điều tiết theo in-flight** + sliding window `6s` phía STT (§20.3); (d) tầng Translation tách thành folder `translation/` ở root repo (Llama-3.3-70B trên FPT, timeout 8s); (e) sửa các lỗi triển khai: highpass vectorized, FastAPI threadpool, race partial/final ở gateway.
 - **1.3** - Đóng toàn bộ O1–O8 (mục 20.2) thành D15–D21 trong 20.1; sửa D3 (ack một lần sau `utterance.end`), D4 (thêm điều kiện fallback MVP nếu trễ mốc ngày 1), D8 (sửa sai vai trò: STT transcribe từng utterance riêng, không tự ghép continuation — việc đó thuộc tầng Translation); thêm §20.3 mô tả mô hình `transcribe()` "periodic re-decode + final"; chốt chính thức model `FPT.AI-whisper-large-v3-turbo` ở §13.1; đồng bộ toàn bộ `protocol_version` trong JSON example về `1.3`.
 - **1.2** - Chốt cứng phương án 2 mic độc lập (tai nghe có dây, mỗi người một mic riêng) cho toàn bộ hackathon. Bỏ hoàn toàn yêu cầu speaker diarization trên một mic chung ra khỏi phạm vi Voice; đơn giản hóa mục 3 và mục 4 (định danh).
 - **1.1** - Bổ sung heartbeat ping/pong để phát hiện idle timeout từ proxy/load balancer; định nghĩa cơ chế server-side backpressure (`stream.throttle`) và ngưỡng kích hoạt `SERVER_BACKPRESSURE`; giải thích rõ ràng buộc 30s receptive field khi chọn maximum utterance duration.
@@ -262,6 +262,8 @@ Mọi control event có envelope chung:
 Giá trị `language_hint`: `vi`, `en` hoặc `auto`.
 
 `language_hint` là gợi ý tĩnh theo nguồn thu âm, có thể bị STT override khi độ tin cậy phát hiện ngôn ngữ tại runtime cao hơn.
+
+> **Cập nhật 1.3.1:** `auto` vẫn hợp lệ trên wire nhưng **không dùng trong vận hành MVP**. Kiểm chứng 2026-07-18: model whisper gốc trên FPT khi không nhận `language` cụ thể sẽ tự **dịch** audio VI sang tiếng Anh thay vì transcribe. Vì cấu hình 2-mic có hint tĩnh per-source (§3.1), mọi tầng (gateway, STT service, UI) chuẩn hóa hint theo quy tắc: không phải `en` ⇒ `vi`. UI demo đã bỏ lựa chọn "Auto".
 
 ### 8.3 `utterance.start`
 
@@ -924,12 +926,42 @@ Interface: `transcribe(utterance_id, audio, language_hint, is_final)`.
 
 Ten goi chinh thuc: **"periodic re-decode + final"** - khong phai batch-mot-lan-cuoi, cung khong phai streaming token-level, de tranh hieu nham chu "streaming":
 
-1. Trong lúc utterance đang mở, P4 gọi `transcribe()` **mỗi ~1s** với `is_final=False`, truyền **toàn bộ audio tích lũy từ đầu utterance** (không phải chỉ chunk mới) → STT decode nhanh (beam=1) → emit **partial** cho UI.
-2. Khi `utterance.end` tới, P4 gọi lần cuối với `is_final=True` trên toàn bộ audio → decode kỹ (beam=5) → emit **final**.
+1. Trong lúc utterance đang mở, P4 gọi `transcribe()` với `is_final=False`, truyền **toàn bộ audio tích lũy từ đầu utterance** (không phải chỉ chunk mới) → STT decode nhanh → emit **partial** cho UI.
+2. Khi `utterance.end` tới, P4 gọi lần cuối với `is_final=True` trên toàn bộ audio → decode kỹ → emit **final**.
 
-Hệ quả latency: partial xuất hiện trong lúc đang nói (≤500ms theo D18); final chịu `600ms` end-silence (VAD hangover của Voice) + 1 lần decode toàn utterance, nằm trong budget `≤1s` sau `utterance.end` (D18).
+**Cập nhật 1.4 — nhịp partial tự điều tiết (đã triển khai):** benchmark thực tế (2026-07-17) cho thấy latency partial qua FPT Cloud p95 ~2.9s > nhịp 1s cố định → nhiều request bay song song và response về **sai thứ tự** (partial cũ đè text mới). Triển khai hiện tại thay nhịp cố định bằng hai guard ở gateway:
 
-Hệ quả cho Voice: vì partial decode lại **toàn bộ** audio tích lũy, utterance càng dài thì mỗi lần partial càng tốn — thêm một lý do ủng hộ giới hạn `25–28s` ở D8. Nếu benchmark cho thấy nhịp `1s` không kịp với utterance dài, STT có thể giãn nhịp partial lên `1.5–2s`/lần — đây là quyết định nội bộ của STT, không đổi hợp đồng Voice↔gateway.
+- `inFlightPartial`: không bắn partial mới khi partial trước chưa trả về — nhịp thực tế tự co giãn theo latency mạng (đo được ~0.4–1.1s/partial sau warmup).
+- `finalized`: partial trả về **sau** khi final đã phát bị drop, không bao giờ có `stt.partial` sau `stt.final`.
+
+**Sliding window phía STT (đã triển khai):** partial chỉ re-decode `6s` audio cuối (`PARTIAL_WINDOW_S`) thay vì toàn bộ buffer đang lớn dần → chi phí partial là O(1) theo độ dài utterance. Hệ quả cho UI: text partial là "cửa sổ đuôi", với câu dài hơn 6s phần đầu sẽ biến mất khỏi partial — UI phải hiển thị partial như dòng tạm (thay thế), không phải dòng tích lũy; final luôn là toàn văn. Final vẫn decode toàn bộ audio.
+
+Hệ quả latency (số đo thật, xem §20.4): partial ~0.4–1.1s sau warmup; final ~0.6s + 450–600ms end-silence của VAD — đạt budget `≤1s` sau `utterance.end` (D18), nhưng partial ≤500ms từ lúc bắt đầu nói (D18) chỉ đạt sau warmup và với mạng ổn định.
+
+### 20.4 Kết quả kiểm chứng model FPT & routing STT (bổ sung 1.4, đo thật 2026-07-17/18)
+
+**Hành vi model đã kiểm chứng bằng call thật:**
+
+| Model (trên `mkp-api.fptcloud.com`) | VI | EN | Ghi chú |
+|---|---|---|---|
+| `FPT.AI-whisper-large-v3-turbo` (fine-tune) | ✅ rất tốt | ❌ ra phonetic VN ("hello everyone" → "he lô e ri goăn") | Bỏ qua tham số `language`; không hỗ trợ `verbose_json` (trả 503); audio nhiễu/không phải giọng nói → 500 |
+| `whisper-large-v3-turbo` (bản gốc) | ✅ tốt (bắt buộc truyền `language=vi`) | ✅ tốt | **Không truyền `language`** → tự DỊCH audio VI sang EN thay vì transcribe — lý do cấm hint `auto` |
+
+**Routing đã chốt trong `stt/stt_service/service.py` (BACKEND=auto):**
+
+| language_hint | partial | final |
+|---|---|---|
+| `vi` | `fpt` (fine-tune — nhanh, VI chuẩn) | `fpt_final` (bản gốc — code-switch) |
+| `en` | `fpt_final` | `fpt_final` |
+| khác/`auto` | chuẩn hóa thành `vi` | chuẩn hóa thành `vi` |
+
+Fallback tự động fpt ↔ fpt_final khi backend chính lỗi (timeout/5xx). Groq bị 403 với IP Việt Nam nên loại khỏi routing mặc định (engine vẫn còn trong code).
+
+**Tầng Translation (thuộc D8, đã có triển khai đầu tiên):** folder `translation/` ở root repo — `src/translator.ts` (logic thuần, timeout 8s), `src/prompts.ts` (prompt business meeting + glossary giữ thuật ngữ EN), `cli.ts` (debug không cần mic/STT). Gateway gọi sau `stt.final`, phát event `translation.final` (không thuộc wire contract Voice↔gateway — là event nội bộ demo). Model `Llama-3.3-70B-Instruct` trên FPT, đo thật ~0.6–1.2s/câu. Việc còn mở: ghép ngữ cảnh theo `continuation_id` (D8), streaming token.
+
+**Latency E2E đo thật (simulate_client, 10s audio EN, 2026-07-18):** partial đầu (warmup) 1.14s, các partial sau 0.39–0.55s, final 0.58s, translation 1.14s. Tổng từ `utterance.end` đến bản dịch: ~1.7s.
+
+**Cấu trúc repo tương ứng các tầng:** `voice/` (capture→VAD→stream + gateway demo tại `voice/src/mock-server/`), `stt/` (STT service :8001), `translation/` (dịch text), `backend/` (NestJS session/room — sẽ tiếp quản gateway + translation sau hackathon), `frontend/` (UI React, chờ backend Socket.IO).
 
 ## 21. MVP đề xuất cho hackathon
 

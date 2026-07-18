@@ -23,20 +23,33 @@ logger = logging.getLogger("stt_service.service")
 _engines: dict[str, ASREngine] = {}
 
 
+def normalize_hint(language_hint: str) -> str:
+    """Collapse the hint to a concrete 'vi' or 'en' — never 'auto'.
+
+    The 2-mic MVP has static per-source hints, and fpt_final (original whisper)
+    silently TRANSLATES instead of transcribing when no concrete language is
+    given (verified 2026-07-18: VI audio without language= came back in English).
+    Anything that isn't explicitly English is treated as Vietnamese.
+    """
+    return "en" if (language_hint or "").strip().lower().split("-")[0] == "en" else "vi"
+
+
 def resolve_backend(language_hint: str, is_final: bool = False) -> str:
     """Resolve which backend engine to use.
 
     Split strategy for FPT Cloud:
-      - partial: fpt (uses FPT.AI-whisper-large-v3-turbo, fast, fine-tuned)
-      - final:   fpt_final (uses whisper-large-v3-turbo, original OpenAI model for code-switching)
+      - VI partial: fpt (FPT.AI-whisper-large-v3-turbo — fast, VI fine-tune)
+      - VI final:   fpt_final (original whisper-large-v3-turbo — code-switching)
+      - EN (both):  fpt_final — the VI fine-tune outputs Vietnamese phonetic
+        garbage for English speech, so EN partials must not use it.
     """
     if config.BACKEND != "auto":
         return config.BACKEND
 
-    # Always use FPT since Groq is currently throwing 403 blocks on VN IPs.
-    if is_final:
+    # Groq is currently throwing 403 blocks on VN IPs — FPT only.
+    if normalize_hint(language_hint) == "en":
         return "fpt_final"
-    return "fpt"
+    return "fpt_final" if is_final else "fpt"
 
 
 
@@ -75,33 +88,29 @@ def _trim_trailing_silence(audio: np.ndarray) -> np.ndarray:
 
 
 def _highpass_filter(audio: np.ndarray) -> np.ndarray:
-    """First-order IIR high-pass filter at HIGHPASS_CUTOFF_HZ (default 80 Hz).
+    """High-pass at ~HIGHPASS_CUTOFF_HZ: subtract a moving-average baseline.
 
     Removes DC offset and low-frequency rumble (HVAC, fans, desk vibrations)
     that pollutes Whisper's spectrogram without carrying speech information.
 
-    Vectorized via numpy cumsum — no Python loop, O(N) time, negligible latency.
+    A moving-average lowpass has its -3 dB point at ~0.443·fs/win, so
+    win = 0.443·fs/cutoff. Computed with one cumsum — true O(N) numpy,
+    no Python loop (the previous IIR version looped per sample: ~400k
+    iterations for 25s audio, 100ms+ CPU per call).
     """
-    cutoff = config.HIGHPASS_CUTOFF_HZ
-    rc = 1.0 / (2.0 * np.pi * cutoff)
-    dt = 1.0 / config.SAMPLE_RATE
-    alpha = rc / (rc + dt)  # ≈ 0.9969 for 80 Hz @ 16 kHz
+    win = max(3, int(0.443 * config.SAMPLE_RATE / config.HIGHPASS_CUTOFF_HZ))
+    if audio.size <= win:
+        return (audio - audio.mean()).astype(np.float32)
 
-    # y[n] = alpha * (y[n-1] + x[n] - x[n-1])
-    # Rewritten as: y = alpha * (x - x_delayed) summed cumulatively.
-    # This is mathematically equivalent to the recursive form.
-    diff = np.empty_like(audio)
-    diff[0] = audio[0]
-    diff[1:] = audio[1:] - audio[:-1]
+    c = np.cumsum(np.concatenate(([0.0], audio.astype(np.float64))))
+    ma = (c[win:] - c[:-win]) / win  # length: N - win + 1, centered below
 
-    # Apply the IIR decay via geometric series on the diff signal
-    # y[n] = alpha^1 * diff[n] + alpha^2 * diff[n-1] + ...
-    # Efficiently computed: running multiply+add via numpy
-    y = np.zeros_like(audio)
-    y[0] = diff[0]
-    for i in range(1, len(audio)):
-        y[i] = alpha * (y[i - 1] + diff[i])
-    return y.astype(np.float32)
+    baseline = np.empty(audio.size, dtype=np.float64)
+    half = win // 2
+    baseline[half : half + ma.size] = ma
+    baseline[:half] = ma[0]
+    baseline[half + ma.size :] = ma[-1]
+    return (audio - baseline).astype(np.float32)
 
 
 def _normalize_audio(audio: np.ndarray) -> np.ndarray:
@@ -253,6 +262,7 @@ def transcribe(
     worker never crashes on API errors).
     """
     t0 = time.perf_counter()
+    language_hint = normalize_hint(language_hint)  # never 'auto' past this point
     backend_name = resolve_backend(language_hint, is_final=is_final)
     out = {
         "utterance_id": utterance_id,
@@ -268,27 +278,9 @@ def transcribe(
 
     audio = np.asarray(audio, dtype=np.float32).reshape(-1)
 
-    # Trim dead-air from the end to prevent Whisper hallucinations on trailing noise
-    audio = _trim_trailing_silence(audio)
-
-    if _is_silence(audio):
-        # Hallucination guard: whisper invents text on silence — skip the API.
-        out["asr_latency_ms"] = round((time.perf_counter() - t0) * 1000, 1)
-        logger.debug("utt=%s %s: silence, skipped ASR", utterance_id, out["type"])
-        return out
-
-    # Audio preprocessing pipeline (applied to real speech only):
-    # 1. High-pass filter: remove DC offset + sub-80Hz rumble (HVAC, fans)
-    # 2. Peak normalize: bring quiet audio to -3 dBFS for optimal Whisper input
-    audio = _highpass_filter(audio)
-    audio = _normalize_audio(audio)
-
-    timeout_s = config.TIMEOUT_FINAL_S if is_final else config.TIMEOUT_PARTIAL_S
-
-
-    # Sliding window for partial decodes: only re-decode the last N seconds of
-    # accumulated audio instead of the full growing buffer.  This keeps partial
-    # latency O(1) rather than O(utterance_length) — critical for long speakers.
+    # Sliding window FIRST: partials only re-decode the last N seconds, so all
+    # preprocessing below runs on O(window) samples, not the full growing
+    # utterance — keeps partial cost O(1) regardless of utterance length.
     decode_audio = audio
     if not is_final and audio.size > config.PARTIAL_WINDOW_SAMPLES:
         decode_audio = audio[-config.PARTIAL_WINDOW_SAMPLES:]
@@ -296,6 +288,23 @@ def transcribe(
             "utt=%s partial: sliding window %.1fs→%.1fs",
             utterance_id, audio.size / config.SAMPLE_RATE, config.PARTIAL_WINDOW_S,
         )
+
+    # Trim dead-air from the end to prevent Whisper hallucinations on trailing noise
+    decode_audio = _trim_trailing_silence(decode_audio)
+
+    if _is_silence(decode_audio):
+        # Hallucination guard: whisper invents text on silence — skip the API.
+        out["asr_latency_ms"] = round((time.perf_counter() - t0) * 1000, 1)
+        logger.debug("utt=%s %s: silence, skipped ASR", utterance_id, out["type"])
+        return out
+
+    # Audio preprocessing (applied to real speech only, on the decode window):
+    # 1. High-pass filter: remove DC offset + sub-80Hz rumble (HVAC, fans)
+    # 2. Peak normalize: bring quiet audio to -3 dBFS for optimal Whisper input
+    decode_audio = _highpass_filter(decode_audio)
+    decode_audio = _normalize_audio(decode_audio)
+
+    timeout_s = config.TIMEOUT_FINAL_S if is_final else config.TIMEOUT_PARTIAL_S
 
     try:
         result = get_engine(backend_name).transcribe(
@@ -321,7 +330,7 @@ def transcribe(
                 out["backend"] = backend_name
                 try:
                     result = get_engine(backend_name).transcribe(
-                        audio, language_hint=language_hint, fast=not is_final, timeout_s=timeout_s
+                        decode_audio, language_hint=language_hint, fast=not is_final, timeout_s=timeout_s
                     )
                 except EngineError as fallback_e:
                     out["asr_latency_ms"] = round((time.perf_counter() - t0) * 1000, 1)
