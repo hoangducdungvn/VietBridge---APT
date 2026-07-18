@@ -165,6 +165,7 @@ interface SessionState {
   serverReceivedTimestamps: number[];    // D7 §10.4 overlap detection
   connectedAt: number;
   activeUtterance: ActiveUtterance | null;
+  translationContext: { sourceText: string; translatedText: string }[];
 }
 
 function createSessionState(): SessionState {
@@ -180,6 +181,7 @@ function createSessionState(): SessionState {
     serverReceivedTimestamps: [],
     connectedAt: Date.now(),
     activeUtterance: null,
+    translationContext: [],
   };
 }
 
@@ -613,7 +615,13 @@ async function callTranslationService(
   langHint: string,
 ): Promise<void> {
   try {
-    const res = await translate(sourceText, langHint);
+    const res = await translate(sourceText, langHint, { context: state.translationContext });
+
+    // Append to conversation context for LLM coherence, keeping the window small (e.g., last 4 turns)
+    state.translationContext.push({ sourceText, translatedText: res.translatedText });
+    if (state.translationContext.length > 4) {
+      state.translationContext.shift();
+    }
 
     log(
       '[TRANSLATION]',

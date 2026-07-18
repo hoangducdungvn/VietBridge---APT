@@ -4,7 +4,7 @@
 // (see voice/scripts/translate_cli.ts) and later ported 1:1 into the backend's
 // TranslationProvider implementation.
 
-import { buildTranslationPrompt } from './prompts';
+import { buildTranslationPrompt, type TranslationTurn } from './prompts';
 
 export type TranslateLang = 'vi' | 'en';
 
@@ -16,6 +16,8 @@ export interface TranslatorConfig {
   model?: string;
   /** Hard timeout for the LLM call (ms). */
   timeoutMs?: number;
+  /** Recent conversation turns to provide context for LLM coherence */
+  context?: TranslationTurn[];
 }
 
 export interface TranslationResult {
@@ -63,7 +65,7 @@ export async function translate(
 
   const sourceLang = normalizeLang(sourceLangHint);
   const targetLang: TranslateLang = sourceLang === 'vi' ? 'en' : 'vi';
-  const prompt = buildTranslationPrompt(sourceLang, targetLang, sourceText);
+  const prompt = buildTranslationPrompt(sourceLang, targetLang, sourceText, config.context);
 
   const t0 = Date.now();
   const controller = new AbortController();

@@ -7,18 +7,34 @@ export const GLOSSARY_KEEP_ENGLISH = [
   'milestone', 'deadline', 'KPI', 'OKR', 'budget', 'partnership',
 ];
 
+export interface TranslationTurn {
+  sourceText: string;
+  translatedText: string;
+}
+
 export function buildTranslationPrompt(
   sourceLang: 'vi' | 'en',
   targetLang: 'vi' | 'en',
   sourceText: string,
+  context?: TranslationTurn[],
 ): string {
   const langName = { vi: 'Vietnamese', en: 'English' } as const;
-  return `You are a professional interpreter for a Vietnamese-English business meeting. Translate the following ${langName[sourceLang]} text to ${langName[targetLang]}.
+  
+  let prompt = `You are a professional interpreter for a Vietnamese-English business meeting. Translate the following ${langName[sourceLang]} text to ${langName[targetLang]}.
 Rules:
 - Keep business/technical terms commonly used in English (${GLOSSARY_KEEP_ENGLISH.slice(0, 6).join(', ')}, ...) in English
 - Keep proper nouns, numbers, and currency amounts exactly as spoken
 - Maintain the speaker's natural tone; do not add or omit content
-- Return ONLY the translated text, no explanations
+- Return ONLY the translated text, no explanations\n`;
 
-Text to translate: ${sourceText}`;
+  if (context && context.length > 0) {
+    prompt += `\nPrevious conversation context (for coherence):\n`;
+    context.forEach(turn => {
+      prompt += `Speaker (${langName[sourceLang]}): ${turn.sourceText}\n`;
+      prompt += `Translation: ${turn.translatedText}\n`;
+    });
+  }
+
+  prompt += `\nText to translate: ${sourceText}`;
+  return prompt;
 }

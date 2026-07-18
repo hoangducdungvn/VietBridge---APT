@@ -220,7 +220,9 @@ def _is_repetitive_hallucination(text: str) -> bool:
     counts: dict[str, int] = {}
     for token in tokens:
         counts[token] = counts.get(token, 0) + 1
-    if max(counts.values()) >= 8 and max(counts.values()) / len(tokens) >= 0.35:
+    # 0.25 catches 3-word and 4-word loops (e.g. "to ask him" -> 33%).
+    # The >= 8 requirement protects real speech (saying "the" 8 times takes a very long sentence).
+    if max(counts.values()) >= 8 and max(counts.values()) / len(tokens) >= 0.25:
         return True
 
     sentences = [s.strip() for s in re.split(r"[.!?。]+", text_lower) if s.strip()]

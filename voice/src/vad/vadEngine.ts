@@ -64,7 +64,7 @@ const DEFAULT_CONFIG: VadConfig = {
   minSpeechMs: 150,             // raised 120→150ms: filters mic pops and single clicks
   preRollMs: 400,               // raised 200→400ms: keep breath intake + leading consonants ("H" in "Hello")
   endSilenceMs: 1000,           // balance natural pauses without making final results feel late
-  maxUtteranceMs: 25_000,       // still below Whisper's 30s practical limit
+  maxUtteranceMs: Infinity,     // user requested unlimited utterance duration
   backend: 'energy',  // R2: energy by default; loadSilero() switches to 'silero' on success
 };
 

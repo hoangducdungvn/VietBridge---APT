@@ -104,13 +104,15 @@ export class WebAudioCaptureAdapter {
       throw new Error(message);
     }
 
-    const processing = !config?.studioMode;
+    // User requested to disable browser audio processing by default.
+    // This allows the raw audio (with all its natural pauses and background noise)
+    // to reach the VAD, preventing aggressive premature cutting by the browser.
     const constraints: MediaStreamConstraints = {
       audio: {
         channelCount: 1,
-        echoCancellation: processing,
-        noiseSuppression: processing,
-        autoGainControl: processing,
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
         ...(config?.deviceId ? { deviceId: { exact: config.deviceId } } : {}),
       },
     };

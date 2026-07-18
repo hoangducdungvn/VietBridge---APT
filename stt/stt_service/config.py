@@ -73,8 +73,8 @@ PARTIAL_WINDOW_SAMPLES = int(PARTIAL_WINDOW_S * SAMPLE_RATE)   # 96 000 samples
 # --- Silence / hallucination guard ---
 # Audio below BOTH thresholds is treated as silence: return empty text,
 # never hit the API (whisper hallucinates on silence).
-SILENCE_RMS = 5e-3    # ~ -46 dBFS (raised from 1e-3: safe after peak normalization)
-SILENCE_PEAK = 1.5e-2  # ~ -36 dBFS
+SILENCE_RMS = 1.5e-2   # ~ -36 dBFS (raised to handle unsuppressed noise floor)
+SILENCE_PEAK = 5.0e-2  # ~ -26 dBFS
 
 # --- Language handling ---
 # language_hint is a prior; a detected language different from the hint wins
