@@ -96,6 +96,18 @@ export class SessionsService {
       );
     }
 
+    const host = this.participantsService
+      .getRequiredParticipants(session.participantIds)
+      .find((participant) => participant.role === 'host');
+
+    if (host !== undefined && host.sourceLanguage === input.sourceLanguage) {
+      throw new ApiHttpException(
+        HttpStatus.CONFLICT,
+        'LANGUAGE_PAIR_CONFLICT',
+        'The guest source language must be different from the host source language.',
+      );
+    }
+
     const guest = this.participantsService.createParticipant({
       displayName: input.displayName,
       role: 'guest',
@@ -162,7 +174,6 @@ export class SessionsService {
     }
 
     const now = Date.now();
-    session.status = 'closing';
     delete session.activeTurnId;
     session.closedAt = now;
     session.lastActivityAt = now;

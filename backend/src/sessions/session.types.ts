@@ -5,20 +5,24 @@ import type {
 } from '../participants/participant.types';
 
 export type SessionStatus =
-  'waiting' | 'active' | 'closing' | 'closed' | 'error';
+  | 'waiting'
+  | 'active'
+  | 'closing'
+  | 'closed'
+  | 'error';
 
 export interface TranslationSession {
-  activeTurnId?: string;
-  closedAt?: number;
-  createdAt: number;
-  glossary: Record<string, string>;
-  lastActivityAt: number;
-  participantIds: string[];
-  recentTurnIds: string[];
-  roomCode: string;
   sessionId: string;
-  startedAt?: number;
+  roomCode: string;
   status: SessionStatus;
+  participantIds: string[];
+  activeTurnId?: string;
+  recentTurnIds: string[];
+  glossary: Record<string, string>;
+  createdAt: number;
+  startedAt?: number;
+  lastActivityAt: number;
+  closedAt?: number;
 }
 
 export interface SessionParticipantInput {

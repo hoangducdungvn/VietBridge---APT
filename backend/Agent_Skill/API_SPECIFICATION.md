@@ -225,13 +225,13 @@ Content-Type: application/json
 - `404 SESSION_NOT_FOUND`: the room code is valid but not stored.
 - `409 SESSION_CLOSED`: the session is closing or closed.
 - `409 SESSION_FULL`: the session already contains two participants.
+- `409 LANGUAGE_PAIR_CONFLICT`: the guest source language matches the host source language.
 - `429 RATE_LIMIT_EXCEEDED`: join limit exceeded.
 
 ### Current language-pair behavior
 
 - Each participant receives the inverse target language automatically.
-- The current implementation does not yet reject a guest whose source language matches the host's source language.
-- Enforcing exactly one `vi` participant and one `en` participant requires a documented API error contract and a corresponding service/test update.
+- The implementation rejects a guest whose source language matches the host's source language with a `409 LANGUAGE_PAIR_CONFLICT` error to enforce exactly one `vi` participant and one `en` participant.
 
 ## POST `/api/sessions/:sessionId/end`
 

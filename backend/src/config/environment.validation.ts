@@ -13,6 +13,7 @@ export interface EnvironmentVariables {
   STT_PROVIDER: ProviderMode;
   STT_START_TIMEOUT_MS: number;
   TRANSLATION_PROVIDER: ProviderMode;
+  TRANSLATION_SERVICE_URL: string;
   TRANSLATION_TIMEOUT_MS: number;
 }
 
@@ -59,6 +60,11 @@ export function validateEnvironment(
       environment.TRANSLATION_PROVIDER,
       PROVIDER_MODES,
       'mock',
+    ),
+    TRANSLATION_SERVICE_URL: parseUrl(
+      'TRANSLATION_SERVICE_URL',
+      environment.TRANSLATION_SERVICE_URL,
+      'http://localhost:8000',
     ),
     TRANSLATION_TIMEOUT_MS: parseInteger(
       'TRANSLATION_TIMEOUT_MS',
@@ -156,4 +162,24 @@ function parseOrigin(value: unknown): string {
   }
 
   return origin;
+}
+
+function parseUrl(
+  name: string,
+  value: unknown,
+  defaultValue: string,
+): string {
+  const resolvedValue = value ?? defaultValue;
+
+  if (typeof resolvedValue !== 'string' || resolvedValue.trim() === '') {
+    throw new Error(`${name} must be a non-empty URL.`);
+  }
+
+  try {
+    new URL(resolvedValue);
+  } catch {
+    throw new Error(`${name} must be a valid URL.`);
+  }
+
+  return resolvedValue;
 }
