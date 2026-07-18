@@ -126,11 +126,13 @@ export class VoicePipeline {
     this.events = events;
     this.capture = new WebAudioCaptureAdapter();
     // Studio Mode assumes a quiet room → VAD may be more sensitive (0.65).
-    // Default 0.70 stays noisy-safe: with browser noise suppression ON the
-    // model still sees a cleaned signal, and a higher bar avoids phantom
-    // utterances from nearby talkers (cocktail-party false starts).
+    // It also assumes longer monologue speaking styles, so we increase endSilenceMs
+    // to 1500ms so pauses for breath don't cut the sentence.
+    // Default mode gets 1000ms (default VadEngine config)
     this.vad = new VadEngine(
-      this.config.studioMode ? { speechStartThreshold: 0.65 } : undefined,
+      this.config.studioMode
+        ? { speechStartThreshold: 0.65, endSilenceMs: 1500 }
+        : undefined
     );
   }
 

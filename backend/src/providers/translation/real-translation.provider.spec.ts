@@ -41,11 +41,14 @@ describe('RealTranslationProvider', () => {
           provide: ConfigService,
           useValue: {
             get: jest.fn((key: string, defaultValue?: string | number) => {
-              if (key === 'TRANSLATION_SERVICE_URL') {
-                return 'http://localhost:8000';
+              if (key === 'FPT_API_KEY') {
+                return 'test-fpt-api-key';
               }
               if (key === 'TRANSLATION_TIMEOUT_MS') {
                 return 5000;
+              }
+              if (key === 'LLM_MODEL') {
+                return 'Llama-3.3-70B-Instruct';
               }
               return defaultValue;
             }),
@@ -94,8 +97,13 @@ describe('RealTranslationProvider', () => {
     httpService.post.mockReturnValue(
       of({
         data: {
-          translatedText: 'We are discussing Project Alpha.',
-          providerLatencyMs: 123,
+          choices: [
+            {
+              message: {
+                content: 'We are discussing Project Alpha.',
+              },
+            },
+          ],
         },
       }),
     );
@@ -104,17 +112,16 @@ describe('RealTranslationProvider', () => {
 
     expect(httpService.post).toHaveBeenCalledTimes(1);
     expect(httpService.post).toHaveBeenCalledWith(
-      'http://localhost:8000/translate',
-      {
-        sourceText: baseInput.sourceText,
-        sourceLanguage: baseInput.sourceLanguage,
-        targetLanguage: baseInput.targetLanguage,
-        context: baseInput.context,
-        glossary: baseInput.glossary,
-      },
+      'https://mkp-api.fptcloud.com/v1/chat/completions',
+      expect.objectContaining({
+        model: 'Llama-3.3-70B-Instruct',
+        messages: expect.any(Array),
+      }),
       expect.objectContaining({
         timeout: 5000,
         headers: {
+          Authorization: 'Bearer test-fpt-api-key',
+          'Content-Type': 'application/json',
           'x-request-id': baseInput.requestId,
         },
       }),
@@ -126,7 +133,7 @@ describe('RealTranslationProvider', () => {
       sourceLanguage: baseInput.sourceLanguage,
       targetLanguage: baseInput.targetLanguage,
       translatedText: 'We are discussing Project Alpha.',
-      providerLatencyMs: 123,
+      providerLatencyMs: expect.any(Number),
     });
   });
 
@@ -158,8 +165,13 @@ describe('RealTranslationProvider', () => {
       .mockReturnValueOnce(
         of({
           data: {
-            translatedText: 'We are discussing Project Alpha.',
-            providerLatencyMs: 222,
+            choices: [
+              {
+                message: {
+                  content: 'We are discussing Project Alpha.',
+                },
+              },
+            ],
           },
         }),
       );
@@ -167,17 +179,23 @@ describe('RealTranslationProvider', () => {
     const result = await provider.translate(baseInput);
 
     expect(httpService.post).toHaveBeenCalledTimes(2);
+    expect(httpService.post.mock.calls[0][0]).toEqual('https://mkp-api.fptcloud.com/v1/chat/completions');
     expect(httpService.post.mock.calls[0][2]).toEqual(
       expect.objectContaining({
         headers: {
+          Authorization: 'Bearer test-fpt-api-key',
+          'Content-Type': 'application/json',
           'x-request-id': baseInput.requestId,
         },
         timeout: 5000,
       }),
     );
+    expect(httpService.post.mock.calls[1][0]).toEqual('https://mkp-api.fptcloud.com/v1/chat/completions');
     expect(httpService.post.mock.calls[1][2]).toEqual(
       expect.objectContaining({
         headers: {
+          Authorization: 'Bearer test-fpt-api-key',
+          'Content-Type': 'application/json',
           'x-request-id': baseInput.requestId,
         },
         timeout: 5000,
@@ -190,7 +208,7 @@ describe('RealTranslationProvider', () => {
       sourceLanguage: baseInput.sourceLanguage,
       targetLanguage: baseInput.targetLanguage,
       translatedText: 'We are discussing Project Alpha.',
-      providerLatencyMs: 222,
+      providerLatencyMs: expect.any(Number),
     });
   });
 
