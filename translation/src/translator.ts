@@ -4,7 +4,8 @@
 // (see voice/scripts/translate_cli.ts) and later ported 1:1 into the backend's
 // TranslationProvider implementation.
 
-import { buildTranslationPrompt, type TranslationTurn } from './prompts';
+import { buildTranslationPrompt, buildTranslationSystemPrompt, buildTranslationUserPrompt, type TranslationTurn } from './prompts';
+import { protectCriticalValues, restoreCriticalValues } from './criticalTokens';
 
 export type TranslateLang = 'vi' | 'en';
 
@@ -65,7 +66,14 @@ export async function translate(
 
   const sourceLang = normalizeLang(sourceLangHint);
   const targetLang: TranslateLang = sourceLang === 'vi' ? 'en' : 'vi';
-  const prompt = buildTranslationPrompt(sourceLang, targetLang, sourceText, config.context);
+  const protectedSource = protectCriticalValues(sourceText);
+  const systemPrompt = buildTranslationSystemPrompt(sourceLang, targetLang);
+  const userPrompt = buildTranslationUserPrompt(sourceLang, protectedSource.text, config.context);
+  
+  // Meeting utterances are short. A bounded dynamic budget reduces generation
+  // scheduling cost while leaving enough room for Vietnamese expansion.
+  const sourceWordCount = protectedSource.text.trim().split(/\s+/).length;
+  const maxTokens = Math.min(160, Math.max(48, sourceWordCount * 3));
 
   const t0 = Date.now();
   const controller = new AbortController();
@@ -81,9 +89,12 @@ export async function translate(
       },
       body: JSON.stringify({
         model,
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 400,
-        temperature: 0.1,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        max_tokens: maxTokens,
+        temperature: 0,
       }),
     });
   } catch (err) {
@@ -100,7 +111,8 @@ export async function translate(
   }
 
   const data = (await resp.json()) as { choices?: { message?: { content?: string } }[] };
-  const translatedText = data.choices?.[0]?.message?.content?.trim() ?? '';
+  const rawTranslatedText = data.choices?.[0]?.message?.content?.trim() ?? '';
+  const translatedText = restoreCriticalValues(rawTranslatedText, protectedSource.tokens);
   if (!translatedText) {
     throw new TranslationError('LLM returned empty translation');
   }
