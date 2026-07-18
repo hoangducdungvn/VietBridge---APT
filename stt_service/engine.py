@@ -235,10 +235,17 @@ class GroqEngine(ASREngine):
             "model": self._model,
             "response_format": self._response_format,
         }
-        # Only send language hint for final decode (fast=False means final);
-        # for auto-detect during partial, omit to let Groq detect freely.
-        if language_hint and language_hint != "auto":
-            form["language"] = language_hint
+        # Use `prompt` (soft bias) instead of `language` (hard constraint).
+        # Hard language="vi" causes Whisper to phonetically force ALL output into VI,
+        # breaking code-switching ("merge"→"Mở", "Ronaldo"→"Hồ Rôn Năn Đô").
+        # A soft Vietnamese prompt keeps the model biased toward VI while allowing
+        # English proper nouns and technical terms to pass through correctly.
+        hint_clean = (language_hint or "").strip().lower().split("-")[0]
+        if hint_clean == "vi":
+            form["prompt"] = "Xin chào. Đây là cuộc hội thoại tiếng Việt."
+        elif hint_clean == "en":
+            form["prompt"] = "Hello. This is an English conversation."
+        # For "auto" or unknown: no prompt — let Whisper detect freely.
         files = {"file": ("utterance.wav", wav_bytes, "audio/wav")}
         try:
             resp = self._session.post(
@@ -263,42 +270,6 @@ class GroqEngine(ASREngine):
         raise EngineError("http_5xx", body, resp.status_code)
 
 
-class LocalWhisperEngine(ASREngine):
-    """Day-1 stub for offline demos. Interface is final; quality/latency tuning TBD."""
-
-    def __init__(self, model_size: str = config.LOCAL_MODEL_SIZE):
-        try:
-            from faster_whisper import WhisperModel
-        except ImportError:
-            raise RuntimeError(
-                "faster-whisper is not installed (pip install faster-whisper) — "
-                "required only for BACKEND='local'."
-            )
-        self._model = WhisperModel(
-            model_size, device=config.LOCAL_DEVICE, compute_type=config.LOCAL_COMPUTE_TYPE
-        )
-
-    def transcribe(self, audio, language_hint, fast, timeout_s) -> EngineResult:
-        t0 = time.perf_counter()
-        try:
-            segments, info = self._model.transcribe(
-                audio,
-                language=language_hint if fast else None,  # final: let it auto-detect
-                beam_size=1 if fast else 5,
-                vad_filter=False,  # gateway already ran VAD
-            )
-            segs = list(segments)
-        except Exception as e:  # CTranslate2 raises plain RuntimeErrors
-            raise EngineError("backend", f"faster-whisper: {e}")
-        total_ms = (time.perf_counter() - t0) * 1000
-        return EngineResult(
-            text=" ".join(s.text.strip() for s in segs).strip(),
-            language=info.language,
-            language_probability=info.language_probability,
-            avg_logprob=float(np.mean([s.avg_logprob for s in segs])) if segs else None,
-            no_speech_prob=float(max(s.no_speech_prob for s in segs)) if segs else None,
-            timings_ms={"total_ms": round(total_ms, 1)},
-        )
 
 
 def create_engine(backend: Optional[str] = None) -> ASREngine:
@@ -309,11 +280,9 @@ def create_engine(backend: Optional[str] = None) -> ASREngine:
         elif os.environ.get(config.GROQ_API_KEY_ENV):
             backend = "groq"
         else:
-            backend = "local"
+            raise ValueError("No API keys found for 'auto' backend routing")
     if backend == "fpt":
         return FPTCloudEngine()
     if backend == "groq":
         return GroqEngine()
-    if backend == "local":
-        return LocalWhisperEngine()
-    raise ValueError(f"Unknown STT backend {backend!r} (expected 'fpt', 'groq', 'local', or 'auto')")
+    raise ValueError(f"Unknown STT backend {backend!r} (expected 'fpt', 'groq', or 'auto')")

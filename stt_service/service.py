@@ -23,25 +23,39 @@ logger = logging.getLogger("stt_service.service")
 _engines: dict[str, ASREngine] = {}
 
 
-def resolve_backend(language_hint: str) -> str:
-    """Resolve which backend engine to use based on language hint and available keys."""
+def resolve_backend(language_hint: str, is_final: bool = False) -> str:
+    """Resolve which backend engine to use.
+
+    Split strategy for code-switching (VI+EN mixed speech):
+      - partial: FPT (fast, fine-tuned for VI — good enough for live preview)
+      - final:   Groq (original Whisper, handles EN+VI mix correctly)
+    Controlled by config.CODE_SWITCH_FINAL_GROQ. Set False to always use FPT.
+    """
     if config.BACKEND != "auto":
         return config.BACKEND
 
     hint_clean = (language_hint or "").strip().lower().split("-")[0]
     if hint_clean == "vi":
+        # Code-switch guard: final decode always goes to Groq when available
+        # so that EN words mixed into VI speech are transcribed correctly.
+        if (
+            is_final
+            and config.CODE_SWITCH_FINAL_GROQ
+            and os.environ.get(config.GROQ_API_KEY_ENV)
+        ):
+            return "groq"
         if os.environ.get(config.FPT_API_KEY_ENV):
             return "fpt"
         if os.environ.get(config.GROQ_API_KEY_ENV):
             return "groq"
-        return "local"
+        raise RuntimeError("No API key available for STT backend")
 
     # For 'en', 'auto', or any other language hint:
     if os.environ.get(config.GROQ_API_KEY_ENV):
         return "groq"
     if os.environ.get(config.FPT_API_KEY_ENV):
         return "fpt"
-    return "local"
+    raise RuntimeError("No API key available for STT backend")
 
 
 def get_engine(backend_name: Optional[str] = None) -> ASREngine:
@@ -59,6 +73,174 @@ def _is_silence(audio: np.ndarray) -> bool:
     rms = float(np.sqrt(np.mean(np.square(audio))))
     peak = float(np.max(np.abs(audio)))
     return rms < config.SILENCE_RMS and peak < config.SILENCE_PEAK
+
+
+def _trim_trailing_silence(audio: np.ndarray) -> np.ndarray:
+    """Trim trailing silence/noise from the audio array.
+    If VAD on the client hangs open (sending 2s speech + 10s silence),
+    Whisper will hallucinate on the long silence and overwrite the short speech.
+    Trimming ensures Whisper only sees the actual spoken segment.
+    """
+    chunk_size = int(config.SAMPLE_RATE * 0.1)  # 100ms chunks
+    for i in range(len(audio), 0, -chunk_size):
+        start = max(0, i - chunk_size)
+        chunk = audio[start:i]
+        if not _is_silence(chunk):
+            # Found speech! Keep up to this point + 400ms padding
+            pad = int(config.SAMPLE_RATE * 0.4)
+            return audio[:min(len(audio), i + pad)]
+    return audio
+
+
+def _highpass_filter(audio: np.ndarray) -> np.ndarray:
+    """First-order IIR high-pass filter at HIGHPASS_CUTOFF_HZ (default 80 Hz).
+
+    Removes DC offset and low-frequency rumble (HVAC, fans, desk vibrations)
+    that pollutes Whisper's spectrogram without carrying speech information.
+
+    Vectorized via numpy cumsum — no Python loop, O(N) time, negligible latency.
+    """
+    cutoff = config.HIGHPASS_CUTOFF_HZ
+    rc = 1.0 / (2.0 * np.pi * cutoff)
+    dt = 1.0 / config.SAMPLE_RATE
+    alpha = rc / (rc + dt)  # ≈ 0.9969 for 80 Hz @ 16 kHz
+
+    # y[n] = alpha * (y[n-1] + x[n] - x[n-1])
+    # Rewritten as: y = alpha * (x - x_delayed) summed cumulatively.
+    # This is mathematically equivalent to the recursive form.
+    diff = np.empty_like(audio)
+    diff[0] = audio[0]
+    diff[1:] = audio[1:] - audio[:-1]
+
+    # Apply the IIR decay via geometric series on the diff signal
+    # y[n] = alpha^1 * diff[n] + alpha^2 * diff[n-1] + ...
+    # Efficiently computed: running multiply+add via numpy
+    y = np.zeros_like(audio)
+    y[0] = diff[0]
+    for i in range(1, len(audio)):
+        y[i] = alpha * (y[i - 1] + diff[i])
+    return y.astype(np.float32)
+
+
+def _normalize_audio(audio: np.ndarray) -> np.ndarray:
+    """Peak-normalize quiet audio to NORMALIZE_TARGET (-3 dBFS).
+
+    Solves the 'speaking from far away / quiet mic' problem: Whisper performs
+    best when peak amplitude is near full scale. Only normalizes audio whose
+    peak is below NORMALIZE_MIN_PEAK (0.50) to avoid boosting noise floors of
+    already-loud audio or introducing inter-channel gain artefacts.
+    """
+    if not config.NORMALIZE_AUDIO:
+        return audio
+    peak = float(np.max(np.abs(audio)))
+    if peak < 1e-6:          # truly silent — don't amplify to infinity
+        return audio
+    if peak >= config.NORMALIZE_MIN_PEAK:  # already loud enough
+        return audio
+    scale = config.NORMALIZE_TARGET / peak
+    return np.clip(audio * scale, -1.0, 1.0).astype(np.float32)
+
+
+
+# Known Whisper hallucination phrases and keywords.
+# Whisper hallucinates YouTube/social-media language on silence/noise — infinite variety
+# so we use BOTH an exact-phrase list AND a keyword set.
+# Source: https://github.com/openai/whisper/discussions/928
+
+# Exact substring patterns (case-insensitive)
+_HALLUCINATION_PATTERNS = [
+    # Vietnamese closing phrases
+    "cảm ơn các bạn đã theo dõi",
+    "cảm ơn bạn đã xem",
+    "đừng quên đăng ký",
+    "đăng ký kênh",
+    "hẹn gặp lại",
+    "xin chào các bạn",
+    "chúc các bạn",
+    "không bỏ lỡ",
+    "video hấp dẫn",
+    "like và subscribe",
+    # English closing phrases
+    "thank you for watching",
+    "thanks for watching",
+    "please subscribe",
+    "like and subscribe",
+    "don't forget to subscribe",
+    "see you next time",
+    "hit the subscribe",
+    "click the bell",
+    "subtitles by",
+    "transcribed by",
+    # Groq-specific hallucinations on silence/noise (observed in production)
+    "obrigado",       # Portuguese "thank you" — Groq hallucinates this on VI silence
+    "e aí",           # Brazilian Portuguese filler
+    "merci",          # French filler
+    "gracias",        # Spanish filler
+    # Generic filler
+    "...",
+    ". . .",
+]
+
+# Standalone exact-match phrases (entire text, stripped) — too short to be real speech
+# but common Groq hallucinations that don't fit as substrings above.
+_HALLUCINATION_EXACT = {
+    "thank you.", "thank you",
+    "thanks.", "thanks",
+    "okay.", "okay",
+    "hmm.", "hmm",
+    "yes.", "yes",
+    "no.",
+}
+
+# Single keywords that NEVER appear in real conversation but always in Whisper hallucinations.
+# Any text containing these standalone tokens is almost certainly hallucinated.
+_HALLUCINATION_KEYWORDS = {
+    "subscribe",   # "hãy subscribe", "please subscribe", "don't forget to subscribe"
+    "kênh",        # "kênh Ghiền Mì Gõ", "đăng ký kênh" — too generic alone, used with others
+}
+
+# Keyword PAIRS — flag only when BOTH appear in the same text (reduces false positives)
+_HALLUCINATION_KEYWORD_PAIRS = [
+    {"subscribe", "kênh"},
+    {"subscribe", "video"},
+    {"subscribe", "theo dõi"},
+    {"kênh", "video"},
+    {"kênh", "theo dõi"},
+    {"like", "subscribe"},
+    {"bell", "subscribe"},
+]
+
+
+def _is_hallucination(text: str, result) -> bool:
+    """Detect Whisper hallucinations using three signals:
+    1. Exact-phrase blocklist match (substrings).
+    2. Standalone exact-match for very short filler words.
+    3. Keyword-pair match — social-media language never appears in real speech.
+
+    NOTE: no_speech_prob is NOT used — Groq always returns 0.00 for this field,
+    making it unreliable as a hallucination signal.
+    """
+    if not text:
+        return False
+
+    text_lower = text.lower().strip()
+    words = set(text_lower.split())
+
+    # Signal 1: exact phrase match (substring)
+    for phrase in _HALLUCINATION_PATTERNS:
+        if phrase in text_lower:
+            return True
+
+    # Signal 2: standalone short hallucination (exact full-text match)
+    if text_lower in _HALLUCINATION_EXACT:
+        return True
+
+    # Signal 3: keyword-pair match (both words present anywhere in text)
+    for pair in _HALLUCINATION_KEYWORD_PAIRS:
+        if pair.issubset(words) or all(kw in text_lower for kw in pair):
+            return True
+
+    return False
 
 
 def _resolve_language(hint: str, result) -> str:
@@ -89,7 +271,7 @@ def transcribe(
     worker never crashes on API errors).
     """
     t0 = time.perf_counter()
-    backend_name = resolve_backend(language_hint)
+    backend_name = resolve_backend(language_hint, is_final=is_final)
     out = {
         "utterance_id": utterance_id,
         "type": "final" if is_final else "partial",
@@ -104,25 +286,50 @@ def transcribe(
 
     audio = np.asarray(audio, dtype=np.float32).reshape(-1)
 
+    # Trim dead-air from the end to prevent Whisper hallucinations on trailing noise
+    audio = _trim_trailing_silence(audio)
+
     if _is_silence(audio):
         # Hallucination guard: whisper invents text on silence — skip the API.
         out["asr_latency_ms"] = round((time.perf_counter() - t0) * 1000, 1)
         logger.debug("utt=%s %s: silence, skipped ASR", utterance_id, out["type"])
         return out
 
+    # Audio preprocessing pipeline (applied to real speech only):
+    # 1. High-pass filter: remove DC offset + sub-80Hz rumble (HVAC, fans)
+    # 2. Peak normalize: bring quiet audio to -3 dBFS for optimal Whisper input
+    audio = _highpass_filter(audio)
+    audio = _normalize_audio(audio)
+
     timeout_s = config.TIMEOUT_FINAL_S if is_final else config.TIMEOUT_PARTIAL_S
+
+
+    # Sliding window for partial decodes: only re-decode the last N seconds of
+    # accumulated audio instead of the full growing buffer.  This keeps partial
+    # latency O(1) rather than O(utterance_length) — critical for long speakers.
+    decode_audio = audio
+    if not is_final and audio.size > config.PARTIAL_WINDOW_SAMPLES:
+        decode_audio = audio[-config.PARTIAL_WINDOW_SAMPLES:]
+        logger.debug(
+            "utt=%s partial: sliding window %.1fs→%.1fs",
+            utterance_id, audio.size / config.SAMPLE_RATE, config.PARTIAL_WINDOW_S,
+        )
+
     try:
         result = get_engine(backend_name).transcribe(
-            audio, language_hint=language_hint, fast=not is_final, timeout_s=timeout_s
+            decode_audio, language_hint=language_hint, fast=not is_final, timeout_s=timeout_s
         )
     except EngineError as e:
         # If in 'auto' mode and primary backend fails, attempt resilient automatic fallback
         if config.BACKEND == "auto":
             fallback_name = None
             if backend_name == "fpt" and e.code in ("http_5xx", "timeout", "network", "http_4xx"):
-                fallback_name = "groq" if os.environ.get(config.GROQ_API_KEY_ENV) else "local"
-            elif backend_name == "groq" and e.code in ("rate_limit", "http_5xx", "timeout", "network"):
-                fallback_name = "fpt" if (language_hint == "vi" and os.environ.get(config.FPT_API_KEY_ENV)) else "local"
+                fallback_name = "groq" if os.environ.get(config.GROQ_API_KEY_ENV) else None
+            elif backend_name == "groq" and e.code in ("rate_limit", "http_5xx", "timeout", "network", "http_4xx"):
+                # http_4xx covers Cloudflare "Access denied" (403) — common in Vietnam without VPN.
+                # Gracefully fall back to FPT so the app stays functional (no code-switch support
+                # but pure-VI transcription still works).
+                fallback_name = "fpt" if os.environ.get(config.FPT_API_KEY_ENV) else None
 
             if fallback_name and fallback_name != backend_name:
                 logger.warning(
@@ -169,14 +376,28 @@ def transcribe(
         (result.avg_logprob is not None and result.avg_logprob < config.LOW_CONF_AVG_LOGPROB)
         or (result.no_speech_prob is not None and result.no_speech_prob > config.LOW_CONF_NO_SPEECH)
     )
+
+    # Hallucination guard (post-decode): Whisper emits ghost phrases on silence/noise.
+    # Suppress the text and mark low_confidence so the caller can handle it gracefully.
+    if _is_hallucination(out["text"], result):
+        logger.warning(
+            "utt=%s %s [%s]: hallucination suppressed %r",
+            utterance_id, out["type"], backend_name, out["text"][:60],
+        )
+        out["text"] = ""
+        out["low_confidence"] = True
     out["asr_latency_ms"] = round((time.perf_counter() - t0) * 1000, 1)
     if "network_ms" in result.timings_ms:
         out["network_ms"] = result.timings_ms["network_ms"]
 
     logger.info(
-        "utt=%s %s [%s]: audio=%.1fs latency=%.0fms network=%s lang=%s low_conf=%s",
+        "utt=%s %s [%s]: audio=%.1fs latency=%.0fms lang=%s "
+        "no_speech=%.2f avg_logprob=%s low_conf=%s text=%r",
         utterance_id, out["type"], backend_name, audio.size / config.SAMPLE_RATE,
-        out["asr_latency_ms"], out.get("network_ms", "-"),
-        out["language"], out["low_confidence"],
+        out["asr_latency_ms"], out["language"],
+        result.no_speech_prob if result.no_speech_prob is not None else -1,
+        f"{result.avg_logprob:.2f}" if result.avg_logprob is not None else "n/a",
+        out["low_confidence"],
+        out["text"][:60],
     )
     return out

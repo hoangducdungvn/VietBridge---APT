@@ -59,13 +59,13 @@ export interface VadEvent {
 
 const DEFAULT_CONFIG: VadConfig = {
   frameDurationMs: 20,
-  speechStartThreshold: 0.65,
-  speechEndThreshold: 0.35,
-  minSpeechMs: 120,
-  preRollMs: 250,
-  endSilenceMs: 600,
-  maxUtteranceMs: 25_000,
-  backend: 'energy',  // R2: energy by default; switch to 'silero' after loadSilero()
+  speechStartThreshold: 0.70,   // raised 0.65→0.70: fewer false-start triggers on noise
+  speechEndThreshold: 0.28,     // lowered 0.35→0.28: cut speech more aggressively when quiet
+  minSpeechMs: 150,             // raised 120→150ms: filters mic pops and single clicks
+  preRollMs: 200,               // lowered 250→200ms: 50ms faster utterance start latency
+  endSilenceMs: 450,            // lowered 600→450ms: 150ms faster utterance end per sentence
+  maxUtteranceMs: 20_000,       // lowered 25s→20s: gives 10s buffer before Whisper 30s limit
+  backend: 'energy',  // R2: energy by default; loadSilero() switches to 'silero' on success
 };
 
 // ---------------------------------------------------------------------------
