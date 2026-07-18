@@ -19,7 +19,8 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "zustand": "^5.0.2",
-    "@ricky0123/vad-web": "^0.0.22"
+    "@ricky0123/vad-web": "^0.0.22",
+    "vietbridge-voice": "file:../voice"
   },
   "devDependencies": {
     "@eslint/js": "^8.57.1",

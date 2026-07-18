@@ -6,6 +6,7 @@ import { StatusBadge } from '@presentation/components/StatusBadge';
 import { TranscriptBubble } from '@presentation/components/TranscriptBubble';
 import { useAudioCapture } from '@presentation/hooks/useAudioCapture';
 import { useSpeakerTurns } from '@presentation/hooks/useSpeakerTurns';
+import type { TranscriptSegment } from '@domain/entities/TranscriptSegment';
 
 // Controller-style view composing meeting state, actions, and stateless UI components.
 export function MeetingRoomView() {
@@ -33,7 +34,7 @@ export function MeetingRoomView() {
     setStatus('listening');
   };
 
-  const demoSegments =
+  const demoSegments: TranscriptSegment[] =
     segments.length > 0
       ? segments
       : [
