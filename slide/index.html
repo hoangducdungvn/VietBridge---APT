@@ -3,65 +3,39 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VietBridge AI — Pitch Deck V2</title>
+  <meta name="description" content="VietBridge AI: phiên dịch gần thời gian thực Việt - Anh cho cuộc họp trực tiếp giữa đoàn Việt Nam và đoàn Singapore.">
+  <title>VietBridge AI - Bộ slide thuyết trình</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <!-- Inline SVG Definitions for Custom Line-Art Icons -->
   <svg class="svg-defs" aria-hidden="true" focusable="false">
     <symbol id="icon-mic" viewBox="0 0 64 64">
       <rect x="24" y="8" width="16" height="28" rx="8" fill="var(--color-white)" stroke="currentColor" stroke-width="3"/>
-      <path d="M16 24v4a16 16 0 0 0 32 0v-4" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
-      <path d="M32 44v10M20 54h24" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+      <path d="M16 24v4a16 16 0 0 0 32 0v-4M32 44v10M20 54h24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
     </symbol>
-
     <symbol id="icon-chat" viewBox="0 0 64 64">
       <path d="M8 20h28v22H18L8 49V20z" fill="var(--color-white)" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>
       <path d="M28 30h28v22H46L36 59V38h-8V30z" fill="var(--color-card)" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>
       <path d="M14 28h16M14 34h10M34 38h16M34 44h10" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
     </symbol>
-
-    <symbol id="icon-device" viewBox="0 0 64 64">
-      <rect x="12" y="6" width="40" height="52" rx="6" fill="var(--color-white)" stroke="currentColor" stroke-width="3"/>
-      <rect x="16" y="12" width="32" height="34" rx="2" fill="var(--color-pale)" stroke="currentColor" stroke-width="3"/>
-      <circle cx="32" cy="52" r="3" fill="currentColor"/>
-    </symbol>
-
     <symbol id="icon-devices" viewBox="0 0 64 64">
       <rect x="6" y="16" width="22" height="34" rx="4" fill="var(--color-white)" stroke="currentColor" stroke-width="3"/>
       <rect x="36" y="16" width="22" height="34" rx="4" fill="var(--color-white)" stroke="currentColor" stroke-width="3"/>
-      <path d="M17 33h30" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
-      <path d="M22 30l5 3-5 3M42 30l-5 3 5 3" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M17 33h30M22 30l5 3-5 3M42 30l-5 3 5 3" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
     </symbol>
-
     <symbol id="icon-check" viewBox="0 0 64 64">
       <circle cx="32" cy="32" r="24" fill="var(--color-card)" stroke="currentColor" stroke-width="3"/>
       <path d="M21 33l8 8 15-19" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
     </symbol>
-
     <symbol id="icon-lock" viewBox="0 0 64 64">
       <path d="M32 6l20 8v16c0 14-8 23-22 28C18 53 10 44 10 30V14z" fill="var(--color-white)" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>
       <rect x="22" y="24" width="20" height="16" rx="4" fill="var(--color-card)" stroke="currentColor" stroke-width="3"/>
       <path d="M26 24v-4c0-3 3-6 6-6s6 3 6 6v4" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
     </symbol>
-
     <symbol id="icon-clock" viewBox="0 0 64 64">
       <circle cx="32" cy="32" r="24" fill="var(--color-white)" stroke="currentColor" stroke-width="3"/>
       <path d="M32 16v16l12 4" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
     </symbol>
-
-    <symbol id="icon-gear" viewBox="0 0 64 64">
-      <circle cx="32" cy="32" r="10" fill="var(--color-white)" stroke="currentColor" stroke-width="3"/>
-      <path d="M32 8v8M32 48v8M8 32h8M48 32h8M15 15l6 6M43 43l6 6M49 15l-6 6M21 43l-6 6" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
-    </symbol>
-
-    <symbol id="icon-rocket" viewBox="0 0 64 64">
-      <path d="M35 9c10 2 17 9 20 20L40 44 20 24z" fill="var(--color-white)" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>
-      <circle cx="40" cy="24" r="5" fill="var(--color-card)" stroke="currentColor" stroke-width="3"/>
-      <path d="M20 24l-8 3 12 12-3 8 14-6" fill="var(--color-card)" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>
-      <path d="M18 44l-8 8M27 47l-5 8" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
-    </symbol>
-
     <symbol id="icon-network" viewBox="0 0 64 64">
       <rect x="22" y="6" width="20" height="12" rx="3" fill="var(--color-white)" stroke="currentColor" stroke-width="3"/>
       <rect x="6" y="38" width="20" height="12" rx="3" fill="var(--color-card)" stroke="currentColor" stroke-width="3"/>
@@ -73,610 +47,227 @@
   <div class="presentation-app">
     <main class="deck" id="deck" aria-live="polite">
 
-      <!-- Slide 1 — Cover -->
-      <section class="slide slide--cover is-active" data-title="Giới thiệu">
+      <section class="slide slide--cover is-active" data-title="Mở đầu">
         <div class="cover-layout">
           <div class="cover-graphics" aria-hidden="true">
-            <!-- Conceptual non-technical graphic representing shared conversation layer -->
-            <svg class="cover-graphic-canvas" viewBox="0 0 400 360">
-              <circle cx="100" cy="180" r="48" fill="var(--color-white)" stroke="currentColor" stroke-width="3"/>
-              <circle cx="300" cy="180" r="48" fill="var(--color-white)" stroke="currentColor" stroke-width="3"/>
-              
-              <!-- Mics -->
-              <path d="M100 160v20M90 180h20" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
-              <path d="M300 160v20M290 180h20" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
-              
-              <!-- Shared Conversation Layer -->
-              <path d="M148 180c40-30 64-30 104 0" fill="none" stroke="var(--color-primary)" stroke-width="4" stroke-linecap="round" stroke-dasharray="8 6"/>
-              
-              <!-- Pulse Wave in between -->
-              <circle class="signal-pulse" cx="200" cy="155" r="28" fill="var(--color-card)" stroke="currentColor" stroke-width="2" style="opacity:0.8;"/>
-              <path d="M185 155h30" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
-              
-              <!-- Tags -->
-              <text x="100" y="260" text-anchor="middle" font-family="var(--font-heading)" font-size="14" font-weight="bold" fill="currentColor">DEVICE A</text>
-              <text x="300" y="260" text-anchor="middle" font-family="var(--font-heading)" font-size="14" font-weight="bold" fill="currentColor">DEVICE B</text>
-              <text x="200" y="310" text-anchor="middle" font-family="var(--font-heading)" font-size="16" font-weight="bold" fill="var(--color-primary)">SHARED CONVERSATION LAYER</text>
-            </svg>
+            <img class="cover-graphic-canvas" src="thumnails.png" alt="">
           </div>
           <div class="cover-copy-section">
             <div class="pill-row">
-              <span class="pill-tag">VI ↔ EN</span>
-              <span class="pill-tag">Zero-touch</span>
-              <span class="pill-tag">Context-aware</span>
+              <span class="pill-tag">VI &lt;-&gt; EN</span>
+              <span class="pill-tag">Gần thời gian thực</span>
+              <span class="pill-tag">Họp kinh doanh</span>
             </div>
             <h1 class="cover-title reveal">VietBridge AI</h1>
-            <p class="cover-tagline reveal">Two people. Two languages.<br>One seamless conversation.</p>
-            <p class="cover-description reveal">AI-powered real-time interpretation for face-to-face business meetings. Tách biệt thu âm độc lập, đồng bộ dòng thoại song ngữ trực quan.</p>
+            <p class="cover-tagline reveal">Phiên dịch gần thời gian thực cho cuộc họp trực tiếp giữa đoàn Việt Nam và đoàn Singapore.</p>
+            <p class="cover-description reveal">Prototype hai thiết bị hỗ trợ VI &lt;-&gt; EN bằng văn bản, giữ lượt nói và ngữ cảnh trong cùng một phòng họp.</p>
             <div class="cover-footer reveal">
-              <span>Hệ thống phiên dịch đàm phán đa thiết bị</span>
-              <span>Hackathon MVP · 2026</span>
+              <span>AI Singapore · Hackathon</span>
+              <span>Laptop / smartphone · In-person</span>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- Slide 2 — The Problem -->
       <section class="slide" data-title="Vấn đề">
         <div class="slide-pad">
-          <span class="section-kicker">Vấn đề</span>
+          <span class="section-kicker">01 / Problem</span>
           <div class="slide-problem-grid" style="margin-top: 16px;">
             <div class="problem-editorial">
-              <h2 class="slide-title reveal">Business conversations lose momentum when language gets in the way.</h2>
-              <p class="lead-copy reveal">Cuộc họp đàm phán thương mại quốc tế luôn có độ trễ lớn và mất đi luồng trao đổi tự nhiên khi phụ thuộc vào các công cụ truyền thống.</p>
-              <div class="hero-statement-band reveal">
-                Translation should follow the conversation — not interrupt it.
-              </div>
+              <h2 class="slide-title reveal">Hội thoại kinh doanh mất nhịp khi ngôn ngữ trở thành rào cản.</h2>
+              <p class="lead-copy reveal">Trong cuộc họp trực tiếp, mỗi lần ngắt, chuyển lượt và dịch sai tham chiếu đều làm chậm quyết định.</p>
+              <div class="hero-statement-band reveal">Phiên dịch phải đi theo hội thoại, không được làm gián đoạn hội thoại.</div>
             </div>
             <div class="problem-blocks">
-              <article class="problem-card reveal" style="--i: 1">
-                <span class="problem-badge">WAIT</span>
-                <p><strong>Phải dừng lại để chờ dịch.</strong> Cắt nhỏ câu nói làm gián đoạn dòng tư duy và làm kéo dài thời gian cuộc họp lên gấp đôi.</p>
-              </article>
-              <article class="problem-card reveal" style="--i: 2">
-                <span class="problem-badge">SWITCH</span>
-                <p><strong>Phải bấm nút, chọn ngôn ngữ</strong> hoặc liên tục chuyền tay thiết bị/gạt nút ứng dụng, phá vỡ nhịp đàm phán tự nhiên.</p>
-              </article>
-              <article class="problem-card reveal" style="--i: 3">
-                <span class="problem-badge">LOST CONTEXT</span>
-                <p><strong>Mất ngữ cảnh đàm thoại.</strong> Tên riêng, thuật ngữ kinh doanh và các đại từ xưng hô liên kết câu trước - câu sau thường xuyên bị dịch sai.</p>
-              </article>
+              <article class="problem-card reveal" style="--i: 1"><span class="problem-badge">CHỜ</span><p><strong>Dừng lại để chờ dịch.</strong> Quy trình dịch từng lượt làm đứt mạch suy nghĩ của người nói.</p></article>
+              <article class="problem-card reveal" style="--i: 2"><span class="problem-badge">ĐỔI</span><p><strong>Bấm, chọn, chuyển máy.</strong> Điều khiển ngôn ngữ thủ công khiến hai bên phải cùng vận hành một cuộc hội thoại.</p></article>
+              <article class="problem-card reveal" style="--i: 3"><span class="problem-badge">NGỮ CẢNH</span><p><strong>Tham chiếu bị trôi nghĩa.</strong> Thuật ngữ, đại từ và tên dự án mất ý nghĩa khi mỗi câu bị xử lý tách rời.</p></article>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- Slide 3 — Our Insight -->
-      <section class="slide" data-title="Insight">
-        <div class="slide-pad">
-          <span class="section-kicker">Insight của chúng tôi</span>
-          <div class="insight-grid" style="margin-top: 20px;">
-            <div class="insight-concept">
-              <h2 class="slide-title reveal">Real-time translation is not just an AI model problem.</h2>
-              <h2 class="slide-title reveal" style="color: var(--color-primary); margin-top: 6px;">It is a conversation design problem.</h2>
-              
-              <div class="hero-insight-quote reveal" style="--i: 3">
-                Separate the microphones.<br>Share the context.
-              </div>
-            </div>
-            <div class="insight-boxes">
-              <article class="insight-row-card reveal" style="--i: 1">
-                <span class="insight-row-num">01</span>
-                <div class="insight-row-body">
-                  <h4>WHO (Ai nói)</h4>
-                  <p>Biết chính xác ai đang phát biểu nhờ nguồn micro độc lập của từng thiết bị đàm thoại.</p>
-                </div>
-              </article>
-              <article class="insight-row-card reveal" style="--i: 2">
-                <span class="insight-row-num">02</span>
-                <div class="insight-row-body">
-                  <h4>WHEN (Khi nào)</h4>
-                  <p>Tự động nhận biết khi nào một lượt nói bắt đầu và khi nào kết thúc im lặng để bắt đầu dịch.</p>
-                </div>
-              </article>
-              <article class="insight-row-card reveal" style="--i: 3">
-                <span class="insight-row-num">03</span>
-                <div class="insight-row-body">
-                  <h4>CONTEXT (Ngữ cảnh)</h4>
-                  <p>Hiểu và biên dịch câu hiện tại dựa trên dòng lịch sử của những lượt hội thoại trước đó.</p>
-                </div>
-              </article>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Slide 4 — The Solution -->
-      <section class="slide" data-title="Giải pháp">
+      <section class="slide" data-title="Trải nghiệm sản phẩm">
         <div class="slide-pad">
           <div class="center-heading">
-            <span class="section-kicker">Giải pháp</span>
-            <h2 class="slide-title reveal">Two devices. One shared conversation.</h2>
-            <p class="subtitle reveal">Mỗi người dùng một thiết bị cá nhân để thu phát tối ưu, nhưng cùng đồng bộ chung vào một phiên dịch duy nhất.</p>
+            <span class="section-kicker">02 / Trải nghiệm sản phẩm</span>
+            <h2 class="slide-title">Hai thiết bị. Một hội thoại chung.</h2>
+            <p class="subtitle">Mỗi đại biểu dùng một thiết bị để nói và đọc độc lập, trong khi hai màn hình chia sẻ cùng ngữ cảnh.</p>
           </div>
-          
-          <div class="solution-flow-grid">
-            <div class="solution-process-flow">
-              <div class="solution-process-line"></div>
-              
-              <div class="solution-step-node reveal" style="--i: 1">
-                <div class="solution-node-circle">
-                  <svg><use href="#icon-mic"></use></svg>
-                </div>
-                <strong>LISTEN</strong>
-                <span>Thu âm độc lập từ thiết bị</span>
-              </div>
-              
-              <div class="solution-step-node reveal" style="--i: 2">
-                <div class="solution-node-circle">
-                  <svg><use href="#icon-clock"></use></svg>
-                </div>
-                <strong>DETECT</strong>
-                <span>Tự phát hiện lượt nói (VAD)</span>
-              </div>
-              
-              <div class="solution-step-node reveal" style="--i: 3">
-                <div class="solution-node-circle">
-                  <svg><use href="#icon-chat"></use></svg>
-                </div>
-                <strong>TRANSCRIBE</strong>
-                <span>STT gần thời gian thực</span>
-              </div>
-              
-              <div class="solution-step-node reveal" style="--i: 4">
-                <div class="solution-node-circle">
-                  <svg><use href="#icon-translation"></use></svg>
-                </div>
-                <strong>TRANSLATE</strong>
-                <span>Dịch với context hội thoại</span>
-              </div>
-              
-              <div class="solution-step-node reveal" style="--i: 5">
-                <div class="solution-node-circle">
-                  <svg><use href="#icon-devices"></use></svg>
-                </div>
-                <strong>SYNC</strong>
-                <span>Đồng bộ lên 2 màn hình</span>
-              </div>
-            </div>
-
-            <div class="solution-closing-strip reveal" style="--i: 6">
-              <span>No language switching</span>
-              <span>•</span>
-              <span>No passing devices</span>
-              <span>•</span>
-              <span>No push-to-talk</span>
-              <span>•</span>
-              <span>Just speak</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Slide 5 — Zero-Touch Experience -->
-      <section class="slide" data-title="Trải nghiệm">
-        <div class="slide-pad">
-          <div class="center-heading">
-            <span class="section-kicker">Trải nghiệm người dùng</span>
-            <h2 class="slide-title reveal">The best interface is the one you don’t have to think about.</h2>
-            <p class="subtitle reveal">Giảm tối đa chi phí tương tác (interaction cost) để người dùng tập trung hoàn toàn vào đối tác.</p>
-          </div>
-
           <div class="zero-touch-container">
             <div class="zero-touch-panel reveal" style="--i: 1">
-              <h3>Traditional Flow</h3>
-              <div class="zero-touch-steps">
-                <span class="zero-touch-step">Select language</span>
-                <span class="zero-touch-arrow">↓</span>
-                <span class="zero-touch-step" style="background: var(--color-card);">Press button</span>
-                <span class="zero-touch-arrow">↓</span>
-                <span class="zero-touch-step">Speak</span>
-                <span class="zero-touch-arrow">↓</span>
-                <span class="zero-touch-step" style="background: var(--color-card);">Wait for processing</span>
-                <span class="zero-touch-arrow">↓</span>
-                <span class="zero-touch-step">Switch language/Pass device</span>
-                <span class="zero-touch-arrow">↓</span>
-                <span class="zero-touch-step">Repeat interaction</span>
-              </div>
-              <div class="zero-touch-features">
-                <div class="zero-touch-feat-box">Cần bấm nút liên tục</div>
-                <div class="zero-touch-feat-box">Chờ đợi ngắt quãng</div>
-                <div class="zero-touch-feat-box">Dễ nhầm ngôn ngữ</div>
-              </div>
+              <h3>Quy trình truyền thống</h3>
+              <div class="zero-touch-steps"><span class="zero-touch-step">Chọn ngôn ngữ</span><span class="zero-touch-arrow">↓</span><span class="zero-touch-step">Bấm để nói</span><span class="zero-touch-arrow">↓</span><span class="zero-touch-step">Chờ xử lý</span><span class="zero-touch-arrow">↓</span><span class="zero-touch-step">Chuyển thiết bị</span></div>
+              <div class="zero-touch-features"><div class="zero-touch-feat-box">Điều khiển thủ công</div><div class="zero-touch-feat-box">Hội thoại bị ngắt</div><div class="zero-touch-feat-box">Màn hình dùng chung</div></div>
             </div>
-
             <div class="zero-touch-panel zero-touch-panel--accent reveal" style="--i: 2">
-              <h3>VietBridge Flow</h3>
-              <div class="zero-touch-steps">
-                <span class="zero-touch-step" style="font-size: 16px; min-height: 48px;">Speak</span>
-                <span class="zero-touch-arrow">↓</span>
-                <span class="zero-touch-step">AI detects the turn (VAD)</span>
-                <span class="zero-touch-arrow">↓</span>
-                <span class="zero-touch-step">Transcript appears</span>
-                <span class="zero-touch-arrow">↓</span>
-                <span class="zero-touch-step">Translation appears</span>
-                <span class="zero-touch-arrow">↓</span>
-                <span class="zero-touch-step" style="font-size: 16px; min-height: 48px;">Conversation continues</span>
-              </div>
-              <div class="zero-touch-features">
-                <div class="zero-touch-feat-box">Tự động bắt lượt</div>
-                <div class="zero-touch-feat-box">Xử lý song song</div>
-                <div class="zero-touch-feat-box">Hội thoại tự nhiên</div>
-              </div>
+              <h3>Quy trình VietBridge</h3>
+              <div class="zero-touch-steps"><span class="zero-touch-step">Nói tự nhiên</span><span class="zero-touch-arrow">↓</span><span class="zero-touch-step">VAD nhận diện lượt nói</span><span class="zero-touch-arrow">↓</span><span class="zero-touch-step">Bản chép lời + bản dịch</span><span class="zero-touch-arrow">↓</span><span class="zero-touch-step">Tiếp tục hội thoại</span></div>
+              <div class="zero-touch-features"><div class="zero-touch-feat-box">Đầu vào riêng</div><div class="zero-touch-feat-box">Xử lý song song</div><div class="zero-touch-feat-box">Màn hình riêng</div></div>
             </div>
           </div>
-          <div class="zero-touch-hero-msg reveal" style="--i: 3">
-            JUST TALK.
-          </div>
+          <div class="zero-touch-hero-msg reveal" style="--i: 3">Micro khởi động cùng phiên; Energy VAD tự tách lượt nói, vẫn có nút tắt/bật khi cần.</div>
         </div>
       </section>
 
-      <!-- Slide 6 — Context Changes Everything -->
       <section class="slide" data-title="Ngữ cảnh">
         <div class="slide-pad">
-          <span class="section-kicker">Vai trò của Ngữ cảnh</span>
-          <h2 class="slide-title reveal">Translation is easy when sentences are isolated. Conversations are not.</h2>
-          
-          <div class="context-slide-layout" style="margin-top: 24px;">
+          <span class="section-kicker">03 / Phiên dịch theo ngữ cảnh</span>
+          <h2 class="slide-title reveal">Ý nghĩa của một cụm từ phụ thuộc vào những lượt nói xung quanh.</h2>
+          <div class="context-slide-layout" style="margin-top: 20px;">
             <div class="context-chat-thread reveal" style="--i: 1">
-              <div class="context-chat-bubble context-chat-bubble--left">
-                <span class="context-bubble-label">Turn 1 — Vietnamese (Đoàn Việt Nam)</span>
-                <p class="context-bubble-text">“Chúng tôi dự kiến bắt đầu dự án <span class="context-highlight-box" style="border-color:var(--color-primary);">thử nghiệm</span> vào tháng Chín.”</p>
-                <p class="context-bubble-sub">“We expect to begin the <span style="font-weight:700;">pilot project</span> in September.”</p>
-              </div>
-
-              <!-- Dashed arrow connection trace -->
-              <div class="context-connector-line"></div>
-
-              <div class="context-chat-bubble context-chat-bubble--right" style="margin-top: 10px;">
-                <span class="context-bubble-label">Turn 2 — English (Singaporean Partner)</span>
-                <p class="context-bubble-text">“What is the expected budget for <span class="context-highlight-box" style="border-color:var(--color-primary);">the pilot</span>?”</p>
-                <!-- Highlight target of context sync -->
-                <p class="context-bubble-sub" style="color:var(--color-black);">Bản dịch context-aware của VietBridge:</p>
-                <p class="context-bubble-text" style="font-weight:600; color:var(--color-primary);">“Ngân sách dự kiến cho dự án <span style="text-decoration: underline;">thử nghiệm</span> đó là bao nhiêu?”</p>
-              </div>
+              <div class="context-chat-bubble context-chat-bubble--left"><span class="context-bubble-label">Lượt 1 - Tiếng Việt</span><p class="context-bubble-text">"Chúng tôi dự kiến bắt đầu dự án <span class="context-highlight-box">thử nghiệm</span> vào tháng Chín."</p><p class="context-bubble-sub">We expect to begin the <strong>pilot project</strong> in September.</p></div>
+              <svg class="context-connector-line" aria-hidden="true"><path></path></svg>
+              <div class="context-chat-bubble context-chat-bubble--right" style="margin-top: 10px;"><span class="context-bubble-label">Lượt 2 - Tiếng Anh</span><p class="context-bubble-text">"What is the expected budget for <span class="context-highlight-box">the pilot</span>?"</p><p class="context-bubble-sub" style="color: var(--color-black);">Bản dịch theo ngữ cảnh:</p><p class="context-bubble-text" style="font-weight: 600; color: var(--color-primary);">"Ngân sách dự kiến cho dự án thử nghiệm đó là bao nhiêu?"</p></div>
             </div>
-
             <div class="context-explainer">
-              <article class="context-compare-card context-compare-card--wrong reveal" style="--i: 2">
-                <h4>WITHOUT CONTEXT (Dịch độc lập từng câu)</h4>
-                <p style="margin: 0; font-size: 13.5px; line-height: 1.45;">"the pilot" có thể bị dịch nhầm thành **"người phi công"** hoặc **"người dẫn đường"**, làm sai lệch hoàn toàn ý nghĩa thương thảo.</p>
-              </article>
-
-              <article class="context-compare-card context-compare-card--right reveal" style="--i: 3">
-                <h4>WITH VIETBRIDGE (Dịch có ngữ cảnh)</h4>
-                <p style="margin: 0; font-size: 13.5px; line-height: 1.45;">Hệ thống lưu giữ lịch sử để hiểu "the pilot" tham chiếu trực tiếp tới "pilot project" vừa được nhắc đến ở Turn 1.</p>
-              </article>
-
-              <div class="context-specs reveal" style="--i: 4">
-                <div class="context-spec-pill">3–5 recent turns</div>
-                <div class="context-spec-pill" style="background: var(--color-bg-light);">Business glossary</div>
-                <div class="context-spec-pill">Pronoun resolution</div>
-              </div>
+              <article class="context-compare-card context-compare-card--wrong reveal" style="--i: 2"><h4>Không có ngữ cảnh</h4><p style="margin: 0;">"The pilot" có thể bị hiểu là một người hoặc một đối tượng khác. Bản dịch mất tham chiếu của cuộc họp.</p></article>
+              <article class="context-compare-card context-compare-card--right reveal" style="--i: 3"><h4>Có ngữ cảnh</h4><p style="margin: 0;">Hệ thống giữ các lượt nói gần nhất và thuật ngữ kinh doanh để xử lý đại từ và thuật ngữ.</p></article>
+              <div class="context-specs reveal" style="--i: 4"><div class="context-spec-pill">Lượt nói gần nhất</div><div class="context-spec-pill">Glossary</div><div class="context-spec-pill">Đại từ</div></div>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- Slide 7 — Why Two Devices? -->
-      <section class="slide" data-title="Tại sao 2 thiết bị">
-        <div class="slide-pad">
-          <span class="section-kicker">Tại sao dùng hai thiết bị?</span>
-          <h2 class="slide-title reveal">Separate input. Shared intelligence.</h2>
-          
-          <div class="device-compare-container" style="margin-top: 24px;">
-            <div class="device-compare-header reveal">
-              <div class="device-compare-col-title">TIÊU CHÍ</div>
-              <div class="device-compare-col-title" style="color: #666;">ONE SHARED DEVICE</div>
-              <div class="device-compare-col-title" style="color: var(--color-primary);">VIETBRIDGE — TWO DEVICES</div>
-            </div>
-
-            <div class="device-compare-row reveal" style="--i: 1">
-              <span class="device-compare-label">Thu Âm</span>
-              <div class="device-compare-card-col"><strong>Mixed Audio:</strong> Một microphone thu âm cả hai phía, dễ lẫn tạp âm.</div>
-              <div class="device-compare-card-col device-compare-card-col--vietbridge"><strong>Personal Microphone:</strong> Mỗi người một nguồn thu riêng biệt, cách ly nhiễu âm tốt.</div>
-            </div>
-
-            <div class="device-compare-row reveal" style="--i: 2">
-              <span class="device-compare-label">Nhận Diện</span>
-              <div class="device-compare-card-col"><strong>Speaker Ambiguity:</strong> AI phải tự phân tích giọng nói để đoán ai đang nói.</div>
-              <div class="device-compare-card-col device-compare-card-col--vietbridge"><strong>Known Participant:</strong> Xác định chính xác người nói dựa theo ID thiết bị đầu vào.</div>
-            </div>
-
-            <div class="device-compare-row reveal" style="--i: 3">
-              <span class="device-compare-label">Khoảng Cách</span>
-              <div class="device-compare-card-col"><strong>Far-field Audio:</strong> Khoảng cách micro không ổn định, chất lượng thoại kém.</div>
-              <div class="device-compare-card-col device-compare-card-col--vietbridge"><strong>Cleaner Input:</strong> Thiết bị cá nhân đặt gần người nói, âm thanh sạch nhất.</div>
-            </div>
-
-            <div class="device-compare-row reveal" style="--i: 4">
-              <span class="device-compare-label">Hiển Thị</span>
-              <div class="device-compare-card-col"><strong>Shared Screen:</strong> Hai người phải cùng nghiêng đầu nhìn một màn hình.</div>
-              <div class="device-compare-card-col device-compare-card-col--vietbridge"><strong>Personal View:</strong> Tự theo dõi phụ đề độc lập trên màn hình riêng của mình.</div>
-            </div>
-
-            <div class="device-compare-hero reveal" style="--i: 5">
-              Separate the audio source. Unify the conversation context.
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Slide 8 — How It Works -->
-      <section class="slide" data-title="Cách hoạt động">
+      <section class="slide" data-title="Kiến trúc">
         <div class="slide-pad">
           <div class="center-heading">
-            <span class="section-kicker">Kiến trúc hệ thống</span>
-            <h2 class="slide-title reveal">One pipeline. One shared context. Two synchronized experiences.</h2>
-            <p class="subtitle reveal">Luồng xử lý âm thanh đồng bộ qua máy chủ biên trung gian</p>
+            <span class="section-kicker">04 / Kiến trúc</span>
+            <h2 class="slide-title">Một pipeline. Một ngữ cảnh chung. Hai màn hình đồng bộ.</h2>
+            <p class="subtitle">Âm thanh đi theo các chunk nhỏ; mỗi lượt nói có đường đi rõ ràng từ capture đến delivery.</p>
           </div>
-
           <div class="layered-pipeline-container">
             <div class="pipeline-layers">
-              
-              <div class="pipeline-layer reveal" style="--i: 1">
-                <span class="pipeline-layer-title">Layer 1<br>CAPTURE</span>
-                <div class="pipeline-layer-nodes">
-                  <div class="pipeline-layer-node">Device A (Vietnamese 🎙)</div>
-                  <div class="pipeline-layer-node">Device B (English 🎙)</div>
-                </div>
-              </div>
-
-              <div class="pipeline-layer reveal" style="--i: 2">
-                <span class="pipeline-layer-title">Layer 2<br>UNDERSTAND</span>
-                <div class="pipeline-layer-nodes">
-                  <div class="pipeline-layer-node">Streaming Audio Chunk</div>
-                  <div class="pipeline-layer-node">VAD Turn Detection</div>
-                  <div class="pipeline-layer-node">ASR Pipeline (FPT / Groq API)</div>
-                </div>
-              </div>
-
-              <div class="pipeline-layer reveal" style="--i: 3">
-                <span class="pipeline-layer-title">Layer 3<br>CONTEXT</span>
-                <div class="pipeline-layer-nodes">
-                  <div class="pipeline-layer-node">Recent Conversation History</div>
-                  <div class="pipeline-layer-node">Business Glossary Injector</div>
-                </div>
-              </div>
-
-              <div class="pipeline-layer reveal" style="--i: 4">
-                <span class="pipeline-layer-title">Layer 4<br>DELIVER</span>
-                <div class="pipeline-layer-nodes">
-                  <div class="pipeline-layer-node">Bilingual VI ↔ EN Translation</div>
-                  <div class="pipeline-layer-node">Session / Turn Manager</div>
-                  <div class="pipeline-layer-node">Dual Screen Sync</div>
-                </div>
-              </div>
-
+              <div class="pipeline-layer reveal" style="--i: 1"><span class="pipeline-layer-title">01<br>CAPTURE</span><div class="pipeline-layer-nodes"><div class="pipeline-layer-node">Thiết bị A / micro VI</div><div class="pipeline-layer-node">Thiết bị B / micro EN</div></div></div>
+              <div class="pipeline-layer reveal" style="--i: 2"><span class="pipeline-layer-title">02<br>UNDERSTAND</span><div class="pipeline-layer-nodes"><div class="pipeline-layer-node">Chunk âm thanh 40 ms</div><div class="pipeline-layer-node">Energy VAD tách lượt nói</div><div class="pipeline-layer-node">ASR gateway</div></div></div>
+              <div class="pipeline-layer reveal" style="--i: 3"><span class="pipeline-layer-title">03<br>CONTEXT</span><div class="pipeline-layer-nodes"><div class="pipeline-layer-node">Các lượt nói gần nhất</div><div class="pipeline-layer-node">Business glossary</div></div></div>
+              <div class="pipeline-layer reveal" style="--i: 4"><span class="pipeline-layer-title">04<br>DELIVER</span><div class="pipeline-layer-nodes"><div class="pipeline-layer-node">Phiên dịch VI &lt;-&gt; EN</div><div class="pipeline-layer-node">Session manager</div><div class="pipeline-layer-node">Đồng bộ hai màn hình</div></div></div>
             </div>
-
             <div class="pipeline-tech-list">
-              <article class="pipeline-tech-card reveal" style="--i: 1">
-                <h5>WebSocket</h5>
-                <p>Đảm bảo truyền nhận dữ liệu audio stream liên tục với độ trễ thấp nhất.</p>
-              </article>
-              <article class="pipeline-tech-card reveal" style="--i: 2">
-                <h5>Silero VAD</h5>
-                <p>Phát hiện khoảng lặng 500-800ms để kết thúc lượt nói tự động.</p>
-              </article>
-              <article class="pipeline-tech-card reveal" style="--i: 3">
-                <h5>FPT / Groq API</h5>
-                <p>Đột phá xử lý nhận diện giọng nói và suy luận mô hình ngôn ngữ dịch thuật.</p>
-              </article>
-              <article class="pipeline-tech-card reveal" style="--i: 4">
-                <h5>Session Sync</h5>
-                <p>Điều phối hiển thị văn bản đồng thời lên cả hai đầu thiết bị kết nối.</p>
-              </article>
+              <article class="pipeline-tech-card reveal" style="--i: 1"><h5>Thiết bị phổ thông</h5><p>Web app chạy trên laptop hoặc smartphone trong cùng một phòng họp.</p></article>
+              <article class="pipeline-tech-card reveal" style="--i: 2"><h5>Turn-taking</h5><p>Energy VAD đang hoạt động; speaker ID được gắn theo thiết bị và đại biểu.</p></article>
+              <article class="pipeline-tech-card reveal" style="--i: 3"><h5>Text output</h5><p>Bản chép lời và bản dịch được đồng bộ đến hai màn hình qua WebSocket.</p></article>
+              <article class="pipeline-tech-card reveal" style="--i: 4"><h5>Cloud MVP</h5><p>STT và translation hiện dùng provider bên ngoài; on-premise và edge: TBD.</p></article>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- Slide 9 — Engineered for Real Conversations -->
       <section class="slide slide--pale" data-title="Kỹ thuật">
         <div class="slide-pad">
           <div class="center-heading">
-            <span class="section-kicker">Kỹ thuật đàm thoại</span>
-            <h2 class="slide-title reveal">We optimize the entire pipeline — not just model accuracy.</h2>
-            <p class="subtitle reveal">VietBridge AI tập trung tối ưu hóa các điểm nút thực tế của một phiên họp trực tiếp.</p>
+            <span class="section-kicker">05 / Điểm khác biệt kỹ thuật</span>
+            <h2 class="slide-title reveal">MVP được thiết kế quanh các tình huống lỗi của cuộc họp.</h2>
+            <p class="subtitle reveal">Tách rõ điều đã có, điều đang là mục tiêu và điều vẫn cần đo lường.</p>
           </div>
-
           <div class="pillars-grid">
-            <article class="pillar-card reveal" style="--i: 1">
-              <div class="pillar-icon-box">
-                <svg><use href="#icon-clock"></use></svg>
-              </div>
-              <div class="pillar-body">
-                <h3>01 — LOW LATENCY (Độ trễ thấp)</h3>
-                <p>Đo đạc độ trễ chi tiết qua từng giai đoạn trung gian của pipeline kết nối.</p>
-                <span class="pillar-metrics-tag" style="background:var(--color-card);">TARGET: Partial text ≤ 500ms · Final trans ≤ 2s</span>
-              </div>
-            </article>
-
-            <article class="pillar-card reveal" style="--i: 2">
-              <div class="pillar-icon-box">
-                <svg><use href="#icon-chat"></use></svg>
-              </div>
-              <div class="pillar-body">
-                <h3>02 — CONTEXT ACCURACY (Độ chuẩn ngữ cảnh)</h3>
-                <p>Tự động xử lý đại từ xưng hô, phân giải từ viết tắt và giảm thiểu tối đa lỗi dịch thuật ngữ.</p>
-                <span class="pillar-metrics-tag">TARGET: 3–5 recent turns + Business Glossary</span>
-              </div>
-            </article>
-
-            <article class="pillar-card reveal" style="--i: 3">
-              <div class="pillar-icon-box">
-                <svg><use href="#icon-network"></use></svg>
-              </div>
-              <div class="pillar-body">
-                <h3>03 — ROBUSTNESS (Sức chống chịu)</h3>
-                <p>Xử lý lọc tạp âm phòng họp, ngăn ngừa trùng lặp lượt thoại và khôi phục kết nối WebSocket tự động.</p>
-                <span class="pillar-metrics-tag">VAD threshold tuning + Reconnect strategy</span>
-              </div>
-            </article>
-
-            <article class="pillar-card reveal" style="--i: 4">
-              <div class="pillar-icon-box">
-                <svg><use href="#icon-devices"></use></svg>
-              </div>
-              <div class="pillar-body">
-                <h3>04 — ZERO-TOUCH UX (Tương tác tối giản)</h3>
-                <p>Hoàn toàn không yêu cầu người dùng phải bấm nút push-to-talk, chuyền tay máy hay đổi ngôn ngữ thủ công.</p>
-                <span class="pillar-metrics-tag" style="background:var(--color-card);">Interaction Cost = Zero</span>
-              </div>
-            </article>
+            <article class="pillar-card reveal" style="--i: 1"><div class="pillar-icon-box"><svg><use href="#icon-clock"></use></svg></div><div class="pillar-body"><h3>Latency budget</h3><p>Âm thanh được gom thành frame nhỏ và mỗi kết quả mang theo latency của provider.</p><span class="pillar-metrics-tag">TARGET: partial &lt;= 500 ms / final &lt;= 2 s</span></div></article>
+            <article class="pillar-card reveal" style="--i: 2"><div class="pillar-icon-box"><svg><use href="#icon-network"></use></svg></div><div class="pillar-body"><h3>Turn-taking</h3><p>Energy VAD tách lượt; thiết bị xác định speaker. Đại biểu vẫn có thể tắt/bật micro thủ công.</p><span class="pillar-metrics-tag">IMPLEMENTED: Energy VAD + speaker ID</span></div></article>
+            <article class="pillar-card reveal" style="--i: 3"><div class="pillar-icon-box"><svg><use href="#icon-mic"></use></svg></div><div class="pillar-body"><h3>Âm thanh thực tế</h3><p>Browser bật echo cancellation và noise suppression; runtime ghi nhận SNR, clipping và noise level.</p><span class="pillar-metrics-tag">TBD: noisy-room benchmark</span></div></article>
+            <article class="pillar-card reveal" style="--i: 4"><div class="pillar-icon-box"><svg><use href="#icon-lock"></use></svg></div><div class="pillar-body"><h3>Deployability</h3><p>Web app chạy trên laptop/smartphone; MVP dùng cloud provider. Open-model on-premise và edge chưa có.</p><span class="pillar-metrics-tag">STATUS: cloud MVP / BONUS: TBD</span></div></article>
           </div>
         </div>
       </section>
 
-      <!-- Slide 10 — Live Demo -->
-      <section class="slide" data-title="Demo">
+      <section class="slide" data-title="Đánh giá">
         <div class="slide-pad">
-          <div class="center-heading" style="margin-bottom: 20px;">
-            <span class="section-kicker">Thử nghiệm thực tế</span>
-            <h2 class="slide-title reveal">Enough slides. Let’s have a real conversation.</h2>
-            <p class="subtitle reveal">Kịch bản thử nghiệm tính năng đồng bộ và xử lý ngữ cảnh thời gian thực.</p>
+          <span class="section-kicker">06 / Đánh giá</span>
+          <h2 class="slide-title reveal">Chúng tôi chấm MVP theo đúng rubric của thử thách.</h2>
+          <div class="benchmark-layout">
+            <div class="benchmark-table-wrap reveal" style="--i: 1">
+              <div class="benchmark-table-row benchmark-table-head"><span>Tiêu chí · Trọng số</span><span>Bằng chứng cần thu</span><span>Trạng thái</span></div>
+              <div class="benchmark-table-row"><span>Translation accuracy · 30%</span><span>VI→EN + EN→VI: ý nghĩa, số liệu, thuật ngữ</span><strong>TBD</strong></div>
+              <div class="benchmark-table-row"><span>Latency · 20%</span><span>Speech end → text output, p50/p95</span><strong>TBD</strong></div>
+              <div class="benchmark-table-row"><span>UX &amp; meeting flow · 20%</span><span>Free-flow exchange, thao tác tối thiểu</span><strong>DEMO</strong></div>
+              <div class="benchmark-table-row"><span>Robustness · 15%</span><span>Nhiễu, đổi lượt và speaker changes</span><strong>TBD</strong></div>
+              <div class="benchmark-table-row"><span>Technical design · 15%</span><span>Thiết bị phổ thông, reconnect, deployment</span><strong>MVP</strong></div>
+            </div>
+            <div class="evaluation-notes">
+              <article class="context-compare-card reveal" style="--i: 2"><h4>Đã instrument</h4><p>Runtime có latency, SNR, clipping, trạng thái VAD và lỗi transport để thu bằng chứng.</p></article>
+              <article class="context-compare-card reveal" style="--i: 3"><h4>Trước judging</h4><p>Điền p50/p95, chất lượng dịch hai chiều và kết quả noisy-room bằng test tái lập.</p></article>
+              <article class="context-compare-card context-compare-card--wrong reveal" style="--i: 4"><h4>Không claim bonus</h4><p>Open-model on-premise và edge-device vẫn là TBD, chưa phải capability của MVP.</p></article>
+            </div>
           </div>
+        </div>
+      </section>
 
+      <section class="slide" data-title="Demo trực tiếp">
+        <div class="slide-pad">
+          <div class="center-heading" style="margin-bottom: 18px;">
+            <span class="section-kicker">07 / Demo trực tiếp</span>
+            <h2 class="slide-title reveal">Demo trực tiếp: trao đổi tự do VI &lt;-&gt; EN với giám khảo.</h2>
+            <p class="subtitle reveal">Không dùng câu thoại cố định; hai bên nói tự nhiên và xem bản chép lời cùng bản dịch gần thời gian thực.</p>
+          </div>
           <div class="demo-journey-container">
             <div class="demo-timeline-flow">
               <div class="demo-timeline-line"></div>
-              
-              <div class="demo-journey-node reveal" style="--i: 1">
-                <div class="demo-journey-node-num">01</div>
-                <h5>JOIN</h5>
-                <span style="font-size:10px;">Kết nối phòng họp</span>
-              </div>
-
-              <div class="demo-journey-node reveal" style="--i: 2">
-                <div class="demo-journey-node-num">02</div>
-                <h5>VI → EN</h5>
-                <span style="font-size:10px;">Đại biểu Việt phát biểu</span>
-              </div>
-
-              <div class="demo-journey-node reveal" style="--i: 3">
-                <div class="demo-journey-node-num">03</div>
-                <h5>EN → VI</h5>
-                <span style="font-size:10px;">Đối tác phản hồi tự động</span>
-              </div>
-
-              <div class="demo-journey-node reveal" style="--i: 4">
-                <div class="demo-journey-node-num">04</div>
-                <h5>CONTEXT</h5>
-                <span style="font-size:10px;">Thách thức tham chiếu câu trước</span>
-              </div>
-
-              <div class="demo-journey-node reveal" style="--i: 5">
-                <div class="demo-journey-node-num">05</div>
-                <h5>STRESS TEST</h5>
-                <span style="font-size:10px;">Nói nhanh & tiếng ồn nhẹ</span>
-              </div>
+              <div class="demo-journey-node reveal" style="--i: 1"><div class="demo-journey-node-num">01</div><h5>KẾT NỐI</h5><span>Giám khảo và đội thi vào phiên</span></div>
+              <div class="demo-journey-node reveal" style="--i: 2"><div class="demo-journey-node-num">02</div><h5>VI -&gt; EN</h5><span>Câu hỏi kinh doanh tự do</span></div>
+              <div class="demo-journey-node reveal" style="--i: 3"><div class="demo-journey-node-num">03</div><h5>EN -&gt; VI</h5><span>Phản hồi tự nhiên</span></div>
+              <div class="demo-journey-node reveal" style="--i: 4"><div class="demo-journey-node-num">04</div><h5>TURN-TAKING</h5><span>Đổi người nói và thêm nhiễu</span></div>
+              <div class="demo-journey-node reveal" style="--i: 5"><div class="demo-journey-node-num">05</div><h5>BẰNG CHỨNG</h5><span>Đối chiếu output và latency</span></div>
             </div>
-
-            <!-- Giao diện mô phỏng -->
             <div class="demo-mock-screen reveal" style="--i: 6">
-              <div class="demo-mock-header">
-                <span class="demo-mock-title">ROOM SESSION: APT123 (Active)</span>
-                <div class="demo-mock-stats">
-                  <span>Participant: 2</span>
-                  <span>|</span>
-                  <span style="color:var(--color-primary);">Audio: WebSocket Connected</span>
-                </div>
-              </div>
-              <div class="demo-mock-bubble">
-                <span style="font-size:10px; font-weight:bold; text-transform:uppercase; color:#666;">Đại biểu Việt Nam (Tôi)</span>
-                <p style="margin:4px 0 0;">“Chúng tôi dự kiến bắt đầu dự án thử nghiệm vào tháng Chín.”</p>
-                <div class="demo-mock-bubble-trans">“We expect to begin the pilot project in September.”</div>
-              </div>
-              <div class="demo-mock-bubble">
-                <span style="font-size:10px; font-weight:bold; text-transform:uppercase; color:#666;">Singapore Partner</span>
-                <p style="margin:4px 0 0;">“What is the expected budget for the pilot?”</p>
-                <div class="demo-mock-bubble-trans">“Ngân sách dự kiến cho dự án thử nghiệm đó là bao nhiêu?”</div>
-              </div>
-              <div class="demo-mock-header" style="border-top: 1.5px solid var(--color-black); border-bottom: none; padding-top: 8px; font-size:11px;">
-                <span>VAD Status: Lắng nghe...</span>
-                <span>TARGET Latency: ~1.3s</span>
-              </div>
+              <div class="demo-mock-header"><span class="demo-mock-title">PHIÊN HỌP: APT123</span><div class="demo-mock-stats"><span>Giám khảo + đội thi</span><span style="color: var(--color-primary);">WebSocket đã kết nối</span></div></div>
+              <div class="demo-mock-bubble"><span class="demo-label">Đại biểu Việt Nam</span><p style="margin: 4px 0 0;">"Chúng tôi dự kiến bắt đầu dự án thử nghiệm vào tháng Chín."</p><div class="demo-mock-bubble-trans">We expect to begin the pilot project in September.</div></div>
+              <div class="demo-mock-bubble"><span class="demo-label">Giám khảo Singapore</span><p style="margin: 4px 0 0;">"What is the expected budget for the pilot?"</p><div class="demo-mock-bubble-trans">Ngân sách dự kiến cho dự án thử nghiệm đó là bao nhiêu?</div></div>
+              <div class="demo-mock-header demo-footer-status"><span>Energy VAD: đang nghe</span><span>Latency: TBD</span><span>Output: text</span></div>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- Slide 11 — Today → Tomorrow -->
+      <section class="slide" data-title="Video demo">
+        <div class="slide-pad">
+          <div class="center-heading">
+            <span class="section-kicker">08 / Video demo</span>
+            <h2 class="slide-title reveal">Video là bằng chứng dự phòng, không thay thế live demo.</h2>
+            <p class="subtitle reveal">Link Google Drive sẽ ghi lại trao đổi tự do trong điều kiện họp thực tế trước judging session.</p>
+          </div>
+          <div class="video-demo-layout reveal" style="--i: 1">
+            <div class="video-demo-frame" data-video-url="" aria-label="Khung video demo đang chờ link Google Drive">
+              <div class="video-demo-icon">▶</div>
+              <strong>VIDEO DEMO CHƯA CÓ LINK</strong>
+              <span>Dán link Google Drive vào thuộc tính <code>data-video-url</code> của khung này.</span>
+            </div>
+            <div class="video-demo-notes">
+              <div class="video-demo-note"><span class="video-demo-note-number">01</span><div><strong>Free-flow VI &lt;-&gt; EN</strong><p>Đại biểu Việt Nam và đối tác Singapore trao đổi tự nhiên, không đọc kịch bản cố định.</p></div></div>
+              <div class="video-demo-note"><span class="video-demo-note-number">02</span><div><strong>Context + turn-taking</strong><p>Đổi người nói và nhắc lại thuật ngữ "pilot" để kiểm tra tham chiếu giữa các lượt.</p></div></div>
+              <div class="video-demo-note"><span class="video-demo-note-number">03</span><div><strong>Bằng chứng thực tế</strong><p>Ghi output, latency và phản ứng khi có tiếng ồn phòng; mọi số chưa đo giữ là TBD.</p></div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section class="slide" data-title="Lộ trình">
         <div class="slide-pad">
-          <span class="section-kicker">Lộ trình tương lai</span>
-          <h2 class="slide-title reveal">From translator to multilingual meeting intelligence.</h2>
-          
-          <div class="timeline-horizon-grid" style="margin-top: 24px;">
-            <div class="horizon-panel reveal" style="--i: 1">
-              <h3>TODAY (MVP Lõi)</h3>
-              <div class="horizon-list">
-                <div class="horizon-item"><span>Phiên dịch song ngữ VI ↔ EN</span><span class="horizon-item-future" style="background:#527AF0;">Active</span></div>
-                <div class="horizon-item"><span>Hỗ trợ họp nhóm 2 đại biểu</span></div>
-                <div class="horizon-item"><span>Tự ngắt lượt không chạm (VAD)</span></div>
-                <div class="horizon-item"><span>Duy trì context hội thoại & glossary</span></div>
-                <div class="horizon-item"><span>Đồng bộ văn bản 2 thiết bị</span></div>
-              </div>
-            </div>
-
-            <div class="horizon-panel horizon-panel--next reveal" style="--i: 2">
-              <h3>NEXT (Mở rộng tính năng)</h3>
-              <div class="horizon-list">
-                <div class="horizon-item"><span>Phát giọng đọc dịch (Piper TTS)</span><span class="horizon-item-future">Future</span></div>
-                <div class="horizon-item"><span>Gắn nhãn lượt thoại (Speaker Diarization)</span><span class="horizon-item-future">Future</span></div>
-                <div class="horizon-item"><span>Thêm tiếng Thái, Nhật, Hàn, Trung...</span><span class="horizon-item-future">Future</span></div>
-                <div class="horizon-item"><span>Tự động tóm tắt cuộc họp (Summarization)</span><span class="horizon-item-future">Future</span></div>
-                <div class="horizon-item"><span>Triển khai On-Premise bảo mật cao</span><span class="horizon-item-future">Future</span></div>
-              </div>
-            </div>
+          <span class="section-kicker">09 / Lộ trình và đề nghị</span>
+          <h2 class="slide-title reveal">Từ prototype 2 ngày đến hệ thống có thể triển khai.</h2>
+          <div class="timeline-horizon-grid" style="margin-top: 20px;">
+            <div class="horizon-panel reveal" style="--i: 1"><h3>Hôm nay: MVP</h3><div class="horizon-list"><div class="horizon-item"><span>Phiên dịch text VI &lt;-&gt; EN hai chiều</span><span class="horizon-item-future">Đã có</span></div><div class="horizon-item"><span>Web app hai thiết bị trong cùng phòng</span><span class="horizon-item-future">Đã có</span></div><div class="horizon-item"><span>Energy VAD + ngữ cảnh gần nhất</span><span class="horizon-item-future">Đã có</span></div><div class="horizon-item"><span>Metric transport và recovery</span><span class="horizon-item-future">Đã có</span></div></div></div>
+            <div class="horizon-panel horizon-panel--next reveal" style="--i: 2"><h3>Tiếp theo: chứng minh và triển khai</h3><div class="horizon-list"><div class="horizon-item"><span>Benchmark accuracy + baseline</span><span class="horizon-item-future">TBD</span></div><div class="horizon-item"><span>Đánh giá trong phòng nhiều nhiễu</span><span class="horizon-item-future">TBD</span></div><div class="horizon-item"><span>Open-model on-premise / edge</span><span class="horizon-item-future">TBD</span></div><div class="horizon-item"><span>Thêm cặp ngôn ngữ ít tài nguyên</span><span class="horizon-item-future">Roadmap</span></div></div></div>
           </div>
-
-          <div class="horizon-hero-statement reveal" style="--i: 3">
-            Today we translate the conversation. Tomorrow we understand the meeting.
-          </div>
+          <div class="horizon-hero-statement reveal" style="--i: 3">Judging session: chứng minh free-flow exchange và hoàn tất evaluation bằng số đo thực.</div>
         </div>
       </section>
 
-      <!-- Slide 12 — Closing -->
       <section class="slide slide--cover" data-title="Kết thúc">
         <div class="closing-container">
-          <div class="cover-graphics" aria-hidden="true" style="width: 160px; height: 160px; border-radius: 50%; background: var(--color-white); margin-bottom: 24px; display: flex; align-items: center; justify-content: center; border: var(--border-thick);">
-            <svg style="width: 80px; height: 80px; color: var(--color-primary);"><use href="#icon-devices"></use></svg>
-          </div>
-          <div class="closing-hero-quote reveal">
-            Technology should translate the language.<br>Not interrupt the conversation.
-          </div>
-          <div class="closing-supporting reveal" style="--i: 2">
-            <span>Two people</span>
-            <span>Two languages</span>
-            <span>One shared context</span>
-            <span>Zero-touch conversation</span>
-            <span>JUST TALK.</span>
-          </div>
+          <div class="cover-graphics" aria-hidden="true" style="width: 160px; height: 160px; border-radius: 50%; background: var(--color-white); margin-bottom: 24px; display: flex; align-items: center; justify-content: center; border: var(--border-thick);"><svg style="width: 80px; height: 80px; color: var(--color-primary);"><use href="#icon-devices"></use></svg></div>
+          <div class="closing-hero-quote reveal">Công nghệ nên dịch ngôn ngữ.<br>Không làm gián đoạn hội thoại.</div>
+          <div class="closing-supporting reveal" style="--i: 2"><span>Đoàn Việt Nam</span><span>Đoàn Singapore</span><span>VI &lt;-&gt; EN</span><span>Gần thời gian thực</span><span>HÃY NÓI.</span></div>
         </div>
       </section>
-
     </main>
 
-    <!-- Slide Navigation controls UI -->
     <div class="deck-ui" aria-label="Điều khiển trình chiếu">
-      <button class="nav-button" id="prevButton" type="button" aria-label="Slide trước">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
-      </button>
-      <button class="nav-button" id="nextButton" type="button" aria-label="Slide tiếp theo">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
-      </button>
-      <button class="nav-button" id="fullscreenButton" type="button" aria-label="Bật fullscreen">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5"/></svg>
-      </button>
+      <button class="nav-button" id="prevButton" type="button" aria-label="Slide trước"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <button class="nav-button" id="nextButton" type="button" aria-label="Slide tiếp theo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
+      <button class="nav-button" id="fullscreenButton" type="button" aria-label="Bật toàn màn hình"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5"/></svg></button>
     </div>
-
-    <div class="slide-counter" id="slideCounter" aria-live="polite">01 / 12</div>
+    <div class="slide-counter" id="slideCounter" aria-live="polite">01 / 11</div>
     <div class="progress-track" aria-hidden="true"><span id="progressBar"></span></div>
-    <div class="dot-nav" id="dotNav" aria-label="Điều hướng slide"></div>
   </div>
-
   <script src="script.js"></script>
 </body>
 </html>
