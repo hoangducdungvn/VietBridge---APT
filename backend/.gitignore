@@ -18,6 +18,8 @@ lerna-debug.log*
 /coverage
 /.nyc_output
 
+.ai-logs/
+
 # IDEs and Editors
 /.idea
 .project
