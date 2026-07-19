@@ -9,7 +9,6 @@ import { translate, normalizeLang, TranslationError } from '../../../translation
 import { readFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { Blob } from 'buffer';
 
 // Load .env from project root
 // server.ts lives at: voice/src/mock-server/server.ts
@@ -37,13 +36,14 @@ const PORT =
   Number.isInteger(configuredPort) && configuredPort > 0 && configuredPort <= 65_535
     ? configuredPort
     : DEFAULT_PORT;
-
-// ??20.3 D16: partial STT cadence. Default 1000ms; tunable via PARTIAL_CADENCE_MS env.
-// README STT recommends 2000ms, p95 latency 2.9s. inFlightPartial gate prevents pile-up.
-const PARTIAL_CADENCE_MS = (() => {
-  const v = Number.parseInt(process.env.PARTIAL_CADENCE_MS ?? '', 10);
-  return Number.isFinite(v) && v > 0 ? v : 1000;
-})();
+const configuredPartialInterval = Number.parseInt(
+  process.env.STT_PARTIAL_INTERVAL_MS ?? process.env.PARTIAL_CADENCE_MS ?? '',
+  10,
+);
+const PARTIAL_INTERVAL_MS =
+  Number.isInteger(configuredPartialInterval) && configuredPartialInterval >= 500
+    ? configuredPartialInterval
+    : 2000;
 
 // ---------------------------------------------------------------------------
 // Session registry ??? maps sessionId ??? set of active WebSocket connections.
@@ -195,6 +195,7 @@ wss.on('listening', () => {
   console.log(`  ${C.bold}Port:${C.reset}     ${C.yellow}${PORT}${C.reset}`);
   console.log(`  ${C.bold}Protocol:${C.reset} ${C.yellow}v${PROTOCOL_VERSION}${C.reset}`);
   console.log(`  ${C.bold}URL:${C.reset}      ${C.cyan}ws://localhost:${PORT}${C.reset}`);
+  console.log(`  ${C.bold}Partial:${C.reset}  ${C.yellow}${PARTIAL_INTERVAL_MS}ms${C.reset}`);
   console.log(`${C.green}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C.reset}`);
   console.log(`  ${C.dim}Waiting for connections…${C.reset}`);
   console.log('');
@@ -498,7 +499,7 @@ function handleBinaryFrame(_ws: WebSocket, state: SessionState, buffer: ArrayBuf
     if (
       !state.activeUtterance.inFlightPartial &&
       !state.activeUtterance.finalized &&
-      now - state.activeUtterance.lastPartialMs >= PARTIAL_CADENCE_MS
+      now - state.activeUtterance.lastPartialMs >= PARTIAL_INTERVAL_MS
     ) {
       state.activeUtterance.lastPartialMs = now;
       callSttService(_ws, state, state.activeUtterance, false);
@@ -538,7 +539,7 @@ async function callSttService(
     }
 
     const form = new FormData();
-    form.append('file', new Blob([combined]), 'audio.raw');
+    form.append('file', new globalThis.Blob([combined]), 'audio.raw');
     form.append('utterance_id', utt.id);
     form.append('language_hint', utt.langHint);
     form.append('is_final', isFinal ? 'true' : 'false');

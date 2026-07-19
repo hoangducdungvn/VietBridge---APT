@@ -110,7 +110,10 @@ function parseNonEmptyString(
   return resolvedValue.trim();
 }
 
-function parseOptionalString(value: unknown, defaultValue: string): string {
+function parseOptionalString(
+  value: unknown,
+  defaultValue: string,
+): string {
   const resolvedValue = value ?? defaultValue;
   if (typeof resolvedValue !== 'string') {
     return defaultValue;

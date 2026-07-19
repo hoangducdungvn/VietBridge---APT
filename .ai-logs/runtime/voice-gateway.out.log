@@ -9,263 +9,76 @@
   [1mPort:[0m     [33m8081[0m
   [1mProtocol:[0m [33mv1.3[0m
   [1mURL:[0m      [36mws://localhost:8081[0m
+  [1mPartial:[0m  [33m2000ms[0m
 [32m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
   [2mWaiting for connections…[0m
 
-[2m2026-07-18T15:01:09.128Z[0m [44m[1m[37m[CONNECT][0m New client connected
-[2m2026-07-18T15:01:09.133Z[0m [32m[1m[EVENT][0m [36mmic-speaker-a[0m session.start — session=[33mses-22fa7dc9-ac7e-42ee-b04b-d26f06b9b5f2[0m platform=web codec=pcm_s16le sample_rate=16000
-[2m2026-07-18T15:01:09.134Z[0m [2m[32m[REPLY][0m → session.accepted
-[2m2026-07-18T15:01:09.135Z[0m [32m[1m[EVENT][0m [36mmic-speaker-a[0m source.register — speaker=[35mspeaker-a[0m lang=vi mic=mic-speaker-a
-[2m2026-07-18T15:01:09.137Z[0m [2m[32m[REPLY][0m → source.accepted
-[2m2026-07-18T15:01:09.577Z[0m [35m[1m[EVENT][0m [36mmic-speaker-a[0m utterance.start — id=[33mc8fab017-e685-4318-917e-3b9bd73357a5[0m start=304.27000001072884ms speaker=speaker-a vad_engine=energy-vad speech_prob=0.9999999999999656 pre_roll=320ms
-[2m2026-07-18T15:01:09.579Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m0[0m from [35mspeaker-a[0m (20ms, 640B, vad=0.90, capture=285ms)
-[2m2026-07-18T15:01:09.897Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m24[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=604ms)
-[2m2026-07-18T15:01:10.734Z[0m [35m[1m[EVENT][0m [36mmic-speaker-a[0m utterance.end   — id=[33mc8fab017-e685-4318-917e-3b9bd73357a5[0m reason=session_end duration=1318.3399999886751ms snr=12.14dB clipping=0 dropped=0
-[2m2026-07-18T15:01:10.736Z[0m [2m[32m[REPLY][0m → stream.ack
-[2m2026-07-18T15:01:10.743Z[0m [41m[1m[37m[DISCONNECT][0m [36mmic-speaker-a[0m Client disconnected — session summary: [1m45[0m chunks, [1m1.5s[0m audio, [1m1[0m utterances, [1m1.6s[0m connected
-[2m2026-07-18T15:01:11.568Z[0m [42m[1m[37m[STT FINAL][0m [36mmic-speaker-a[0m [backend=fpt_final | 814.1ms] utt=[33mc8fab017-e685-4318-917e-3b9bd73357a5[0m ""
-[2m2026-07-18T15:01:11.874Z[0m [2m[STT][0m [36mmic-speaker-a[0m dropped stale partial for utt=c8fab017-e685-4318-917e-3b9bd73357a5 (final already sent)
-[2m2026-07-18T15:01:25.745Z[0m [44m[1m[37m[CONNECT][0m New client connected
-[2m2026-07-18T15:01:25.747Z[0m [32m[1m[EVENT][0m [36mmic-speaker-a[0m session.start — session=[33mses-b79bdf99-1679-4ee7-8adb-0b8bc0aaabfd[0m platform=web codec=pcm_s16le sample_rate=16000
-[2m2026-07-18T15:01:25.748Z[0m [2m[32m[REPLY][0m → session.accepted
-[2m2026-07-18T15:01:25.749Z[0m [32m[1m[EVENT][0m [36mmic-speaker-a[0m source.register — speaker=[35mspeaker-a[0m lang=vi mic=mic-speaker-a
-[2m2026-07-18T15:01:25.751Z[0m [2m[32m[REPLY][0m → source.accepted
-[2m2026-07-18T15:01:26.269Z[0m [35m[1m[EVENT][0m [36mmic-speaker-a[0m utterance.start — id=[33m53a67e97-9122-4a6f-8c9a-a0daba28f0f2[0m start=301.0949999988079ms speaker=speaker-a vad_engine=energy-vad speech_prob=0.9999999999998996 pre_roll=320ms
-[2m2026-07-18T15:01:26.271Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m0[0m from [35mspeaker-a[0m (20ms, 640B, vad=0.90, capture=282ms)
-[2m2026-07-18T15:01:26.589Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m24[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=602ms)
-[2m2026-07-18T15:01:27.508Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 230.9ms] utt=[33m53a67e97-9122-4a6f-8c9a-a0daba28f0f2[0m "kính thưa ban giám"
-[2m2026-07-18T15:01:27.509Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:01:27.589Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m49[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=1601ms)
-[2m2026-07-18T15:01:28.589Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m74[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=2601ms)
-[2m2026-07-18T15:01:28.693Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 400.4ms] utt=[33m53a67e97-9122-4a6f-8c9a-a0daba28f0f2[0m "kính thưa ban giám đốc và các thành viên trong"
-[2m2026-07-18T15:01:28.694Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:01:29.589Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m99[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=3602ms)
-[2m2026-07-18T15:01:29.705Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 377.3ms] utt=[33m53a67e97-9122-4a6f-8c9a-a0daba28f0f2[0m "kính thưa ban giám đốc và các thành viên trong hội đồng quản trị tôi xin"
-[2m2026-07-18T15:01:29.706Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:01:30.589Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m124[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=4601ms)
-[2m2026-07-18T15:01:30.648Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 331.2ms] utt=[33m53a67e97-9122-4a6f-8c9a-a0daba28f0f2[0m "kính thưa ban giám đốc và các thành viên trong hội đồng quản trị tôi xin phép cập nhật"
-[2m2026-07-18T15:01:30.649Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:01:31.588Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m149[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=5601ms)
-[2m2026-07-18T15:01:31.702Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 372.3ms] utt=[33m53a67e97-9122-4a6f-8c9a-a0daba28f0f2[0m "kính thưa ban giám đốc và các thành viên trong hội đồng quản trị tôi xin phép cập nhật nhanh tình hình"
-[2m2026-07-18T15:01:31.703Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:01:32.589Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m174[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=6601ms)
-[2m2026-07-18T15:01:32.762Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 403.7ms] utt=[33m53a67e97-9122-4a6f-8c9a-a0daba28f0f2[0m "kính thưa ban giám đốc và các thành viên trong hội đồng quản trị tôi xin phép cập nhật nhanh tình hình triển khai hệ thống rờ pê"
-[2m2026-07-18T15:01:32.763Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:01:33.589Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m199[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=7601ms)
-[2m2026-07-18T15:01:33.779Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 418ms] utt=[33m53a67e97-9122-4a6f-8c9a-a0daba28f0f2[0m "quốc và các thành viên trong hội đồng quản trị tôi xin phép cập nhật nhanh tình hình triển khai hệ thống rờ pê và các chỉ số tài chính"
-[2m2026-07-18T15:01:33.780Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:01:34.589Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m224[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=8601ms)
-[2m2026-07-18T15:01:34.787Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 389.6ms] utt=[33m53a67e97-9122-4a6f-8c9a-a0daba28f0f2[0m "đồng quản trị tôi xin phép cập nhật nhanh tình hình triển khai hệ thống rờ pê và các chỉ số tài chính đến ngày hôm nay và"
-[2m2026-07-18T15:01:34.788Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:01:35.589Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m249[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=9601ms)
-[2m2026-07-18T15:01:35.843Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 446.5ms] utt=[33m53a67e97-9122-4a6f-8c9a-a0daba28f0f2[0m "sẽ cập nhật nhanh tình hình triển khai hệ thống rờ pê và các chỉ số tài chính đến ngày hôm nay về mặt tiến độ dự án"
-[2m2026-07-18T15:01:35.844Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:01:36.588Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m274[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=10601ms)
-[2m2026-07-18T15:01:36.792Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 392.8ms] utt=[33m53a67e97-9122-4a6f-8c9a-a0daba28f0f2[0m "nhanh tình hình triển khai hệ thống e rờ pê và các chỉ số tài chính đến ngày hôm nay về mặt tiến độ dự án chuyển đổi số đã hoàn thành"
-[2m2026-07-18T15:01:36.793Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:01:37.590Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m299[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=11601ms)
-[2m2026-07-18T15:01:37.883Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 479.5ms] utt=[33m53a67e97-9122-4a6f-8c9a-a0daba28f0f2[0m "triển khai hệ thống rờ pê hoặc các chỉ số tài chính đến ngày hôm nay về mặt tiến độ dự án chuyển đổi số đã hoàn thành giai đoạn hai đã"
-[2m2026-07-18T15:01:37.884Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:01:38.589Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m324[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=12601ms)
-[2m2026-07-18T15:01:38.804Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 407.5ms] utt=[33m53a67e97-9122-4a6f-8c9a-a0daba28f0f2[0m "vào các chỉ số tài chính đến ngày hôm nay về mặt tiến độ dự án chuyển đổi số đã hoàn thành giai đoạn hai đạt tám mươi lăm phần trăm"
-[2m2026-07-18T15:01:38.805Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:01:39.589Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m349[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=13601ms)
-[2m2026-07-18T15:01:39.889Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 450.8ms] utt=[33m53a67e97-9122-4a6f-8c9a-a0daba28f0f2[0m "đến ngày hôm nay về mặt tiến độ dự án chuyển đổi số đã hoàn thành giai đoạn hai đạt tám mươi lăm phần trăm kế hoạch đề ra"
-[2m2026-07-18T15:01:39.890Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:01:40.589Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m374[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=14602ms)
-[2m2026-07-18T15:01:40.906Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 467.2ms] utt=[33m53a67e97-9122-4a6f-8c9a-a0daba28f0f2[0m "mặt tiến độ dự án chuyển đổi số đã hoàn thành giai đoạn hai đạt tám mươi lăm phần trăm kế hoạch đề ra hệ thống xê rờ"
-[2m2026-07-18T15:01:40.907Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:01:41.149Z[0m [35m[1m[EVENT][0m [36mmic-speaker-a[0m utterance.end   — id=[33m53a67e97-9122-4a6f-8c9a-a0daba28f0f2[0m reason=max_duration duration=14880.394999995828ms snr=12.19dB clipping=0.0063 dropped=0
-[2m2026-07-18T15:01:41.151Z[0m [2m[32m[REPLY][0m → stream.ack
-[2m2026-07-18T15:01:41.153Z[0m [35m[1m[EVENT][0m [36mmic-speaker-a[0m utterance.start — id=[33ma1794bdd-27d0-436f-b4fd-d7767fdd320b[0m start=15181.489999994636ms speaker=speaker-a vad_engine=energy-vad speech_prob=1 pre_roll=0ms
-[2m2026-07-18T15:01:41.309Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m399[0m from [35mspeaker-a[0m (20ms, 640B, vad=0.90, capture=15321ms)
-[2m2026-07-18T15:01:41.555Z[0m [42m[1m[37m[STT FINAL][0m [36mmic-speaker-a[0m [backend=fpt_final | 395.4ms] utt=[33m53a67e97-9122-4a6f-8c9a-a0daba28f0f2[0m ""
-[2m2026-07-18T15:01:41.556Z[0m [2m[32m[REPLY][0m → stt.final
-[2m2026-07-18T15:01:41.789Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m424[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=15801ms)
-[2m2026-07-18T15:01:42.472Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 278.1ms] utt=[33ma1794bdd-27d0-436f-b4fd-d7767fdd320b[0m "được đã được cấu hình xong và đang"
-[2m2026-07-18T15:01:42.473Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:01:42.791Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m449[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=16801ms)
-[2m2026-07-18T15:01:43.506Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 311.9ms] utt=[33ma1794bdd-27d0-436f-b4fd-d7767fdd320b[0m "được đã được cấu hình xong và đang trong quá trình chạy thử nghiệm"
-[2m2026-07-18T15:01:43.507Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:01:43.789Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m474[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=17801ms)
-[2m2026-07-18T15:01:44.511Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 317.7ms] utt=[33ma1794bdd-27d0-436f-b4fd-d7767fdd320b[0m "được đã được cấu hình xong và đang trong quá trình chạy thử nghiệm năm mươi người"
-[2m2026-07-18T15:01:44.512Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:01:44.789Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m499[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=18802ms)
-[2m2026-07-18T15:01:45.389Z[0m [35m[1m[EVENT][0m [36mmic-speaker-a[0m utterance.end   — id=[33ma1794bdd-27d0-436f-b4fd-d7767fdd320b[0m reason=vad_silence duration=4240.0999999940395ms snr=12.82dB clipping=0 dropped=0
-[2m2026-07-18T15:01:45.391Z[0m [2m[32m[REPLY][0m → stream.ack
-[2m2026-07-18T15:01:45.528Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 333.2ms] utt=[33ma1794bdd-27d0-436f-b4fd-d7767fdd320b[0m "được đã được cấu hình xong và đang trong quá trình chạy thử nghiệm năm mươi người cùng"
-[2m2026-07-18T15:01:45.529Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:01:45.673Z[0m [42m[1m[37m[STT FINAL][0m [36mmic-speaker-a[0m [backend=fpt_final | 273.8ms] utt=[33ma1794bdd-27d0-436f-b4fd-d7767fdd320b[0m "đã được cấu hình xong và đã trao quá trình chạy thử nghiệm cho 50 người cùng"
-[2m2026-07-18T15:01:45.674Z[0m [2m[32m[REPLY][0m → stt.final
-[2m2026-07-18T15:01:46.312Z[0m [35m[1m[TRANSLATION][0m [36mmic-speaker-a[0m [Llama-3.3-70B-Instruct | 635ms] "has been fully configured and the experimental run process has been handed over to 50 people together"
-[2m2026-07-18T15:01:46.313Z[0m [2m[32m[REPLY][0m → translation.final
-[2m2026-07-18T15:01:47.824Z[0m [41m[1m[37m[DISCONNECT][0m [36mmic-speaker-a[0m Client disconnected — session summary: [1m514[0m chunks, [1m19.8s[0m audio, [1m2[0m utterances, [1m22.1s[0m connected
-[2m2026-07-18T15:01:55.634Z[0m [44m[1m[37m[CONNECT][0m New client connected
-[2m2026-07-18T15:01:55.636Z[0m [32m[1m[EVENT][0m [36mmic-speaker-a[0m session.start — session=[33mses-30af59df-882a-481f-af0d-74c00e2d88cc[0m platform=web codec=pcm_s16le sample_rate=16000
-[2m2026-07-18T15:01:55.637Z[0m [2m[32m[REPLY][0m → session.accepted
-[2m2026-07-18T15:01:55.638Z[0m [32m[1m[EVENT][0m [36mmic-speaker-a[0m source.register — speaker=[35mspeaker-a[0m lang=vi mic=mic-speaker-a
-[2m2026-07-18T15:01:55.640Z[0m [2m[32m[REPLY][0m → source.accepted
-[2m2026-07-18T15:01:56.110Z[0m [35m[1m[EVENT][0m [36mmic-speaker-a[0m utterance.start — id=[33m166d3654-9e4c-42cc-9301-356b482c5c9d[0m start=304.2849999964237ms speaker=speaker-a vad_engine=energy-vad speech_prob=0.9999999999999545 pre_roll=320ms
-[2m2026-07-18T15:01:56.111Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m0[0m from [35mspeaker-a[0m (20ms, 640B, vad=0.90, capture=283ms)
-[2m2026-07-18T15:01:56.429Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m24[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=604ms)
-[2m2026-07-18T15:01:57.377Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 221.3ms] utt=[33m166d3654-9e4c-42cc-9301-356b482c5c9d[0m "về mặt tiến độ"
-[2m2026-07-18T15:01:57.378Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:01:57.429Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m49[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=1604ms)
-[2m2026-07-18T15:01:58.429Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m74[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=2604ms)
-[2m2026-07-18T15:01:58.431Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 275.9ms] utt=[33m166d3654-9e4c-42cc-9301-356b482c5c9d[0m "về mặt tiến độ dự án chuyển đổi số đã"
-[2m2026-07-18T15:01:58.433Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:01:59.429Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m99[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=3603ms)
-[2m2026-07-18T15:01:59.450Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 295.6ms] utt=[33m166d3654-9e4c-42cc-9301-356b482c5c9d[0m "về mặt tiến độ dự án chuyển đổi số đã hoàn thành giai đoạn hai"
-[2m2026-07-18T15:01:59.451Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:02:00.429Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m124[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=4603ms)
-[2m2026-07-18T15:02:00.520Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 365.5ms] utt=[33m166d3654-9e4c-42cc-9301-356b482c5c9d[0m "về mặt tiến độ dự án chuyển đổi số đã hoàn thành giai đoạn hai đạt tám mươi lăm phần trăm"
-[2m2026-07-18T15:02:00.521Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:02:01.429Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m149[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=5603ms)
-[2m2026-07-18T15:02:01.549Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 390.3ms] utt=[33m166d3654-9e4c-42cc-9301-356b482c5c9d[0m "về mặt tiến độ dự án chuyển đổi số đã hoàn thành giai đoạn hai đạt tám mươi lăm phần trăm kế hoạch đề ra hệ"
-[2m2026-07-18T15:02:01.550Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:02:02.429Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m174[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=6604ms)
-[2m2026-07-18T15:02:02.599Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 404ms] utt=[33m166d3654-9e4c-42cc-9301-356b482c5c9d[0m "về mặt tiến độ dự án chuyển đổi số đã hoàn thành giai đoạn hai đạt tám mươi lăm phần trăm kế hoạch đề ra hệ thống xê"
-[2m2026-07-18T15:02:02.600Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:02:03.429Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m199[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=7603ms)
-[2m2026-07-18T15:02:03.588Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 392.7ms] utt=[33m166d3654-9e4c-42cc-9301-356b482c5c9d[0m "án chuyển đổi số đã hoàn thành giai đoạn hai đạt tám mươi lăm phần trăm kế hoạch đề ra hệ thống xê rờ mờ mới đã được cấu"
-[2m2026-07-18T15:02:03.589Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:02:04.428Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m224[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=8603ms)
-[2m2026-07-18T15:02:04.623Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 386.5ms] utt=[33m166d3654-9e4c-42cc-9301-356b482c5c9d[0m "hoàn thành giai đoạn hai đạt tám mươi lăm phần trăm kế hoạch đề ra hệ thống xê rờ mờ mới đã được cấu hình xong và đang trong"
-[2m2026-07-18T15:02:04.624Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:02:05.429Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m249[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=9603ms)
-[2m2026-07-18T15:02:05.634Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 398.5ms] utt=[33m166d3654-9e4c-42cc-9301-356b482c5c9d[0m "tám mươi lăm phần trăm kế hoạch đề ra hệ hệ thống xê rờ mờ mới đã được cấu hình xong và đang trong quá trình chạy thử nghiệm"
-[2m2026-07-18T15:02:05.634Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:02:06.429Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m274[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=10603ms)
-[2m2026-07-18T15:02:06.615Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 377.8ms] utt=[33m166d3654-9e4c-42cc-9301-356b482c5c9d[0m "kế hoạch đề ra hệ thống xê rờ mờ mới đã được cấu hình xong và đang trong quá trình chạy thử nghiệm cho năm mươi người"
-[2m2026-07-18T15:02:06.616Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:02:07.429Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m299[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=11603ms)
-[2m2026-07-18T15:02:07.608Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 369.7ms] utt=[33m166d3654-9e4c-42cc-9301-356b482c5c9d[0m "hệ thống xê rờ mờ mới đã được cấu hình xong và đang trong quá trình chạy thử nghiệm cho năm mươi người dùng thuộc khối doanh"
-[2m2026-07-18T15:02:07.609Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:02:08.429Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m324[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=12603ms)
-[2m2026-07-18T15:02:08.618Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 381.7ms] utt=[33m166d3654-9e4c-42cc-9301-356b482c5c9d[0m "mờ mới đã được cấu hình xong và đang trong quá trình chạy thử nghiệm cho năm mươi người dùng thuộc khối danh kinh"
-[2m2026-07-18T15:02:08.619Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:02:09.429Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m349[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=13603ms)
-[2m2026-07-18T15:02:09.571Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 328.3ms] utt=[33m166d3654-9e4c-42cc-9301-356b482c5c9d[0m "xong và đang trong quá trình chạy thử nghiệm cho năm mươi người dùng thuộc khối danh kinh"
-[2m2026-07-18T15:02:09.573Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:02:10.429Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m374[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=14604ms)
-[2m2026-07-18T15:02:10.558Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 316.5ms] utt=[33m166d3654-9e4c-42cc-9301-356b482c5c9d[0m "quá trình chạy thử nghiệm cho năm mươi người dùng thuộc khối danh kinh"
-[2m2026-07-18T15:02:10.559Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:02:10.970Z[0m [35m[1m[EVENT][0m [36mmic-speaker-a[0m utterance.end   — id=[33m166d3654-9e4c-42cc-9301-356b482c5c9d[0m reason=max_duration duration=14859.540000006557ms snr=11.94dB clipping=0 dropped=0
-[2m2026-07-18T15:02:10.974Z[0m [2m[32m[REPLY][0m → stream.ack
-[2m2026-07-18T15:02:10.979Z[0m [35m[1m[EVENT][0m [36mmic-speaker-a[0m utterance.start — id=[33m548e80ae-2ed2-4817-84e0-d7f25813d905[0m start=15163.82500000298ms speaker=speaker-a vad_engine=energy-vad speech_prob=0.9999999999549452 pre_roll=0ms
-[2m2026-07-18T15:02:11.130Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m399[0m from [35mspeaker-a[0m (20ms, 640B, vad=0.90, capture=15284ms)
-[2m2026-07-18T15:02:11.478Z[0m [42m[1m[37m[STT FINAL][0m [36mmic-speaker-a[0m [backend=fpt_final | 489.7ms] utt=[33m166d3654-9e4c-42cc-9301-356b482c5c9d[0m "Về mặt tiến lộ, dự án chuyển đổi số đã hoàn thành giai đoạn 2, đạt 85% kế hoạch đề ra, hệ thống CRM mới đã được cấu hình xong và đang trong quá trình chạy thử nghiệm cho 50 người dùng thuộc khối doanh kinh tế."
-[2m2026-07-18T15:02:11.479Z[0m [2m[32m[REPLY][0m → stt.final
-[2m2026-07-18T15:02:11.630Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m424[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=15804ms)
-[2m2026-07-18T15:02:12.432Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt_final | 437ms] utt=[33m548e80ae-2ed2-4817-84e0-d7f25813d905[0m ""
-[2m2026-07-18T15:02:12.433Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:02:12.629Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m449[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=16804ms)
-[2m2026-07-18T15:02:12.778Z[0m [35m[1m[TRANSLATION][0m [36mmic-speaker-a[0m [Llama-3.3-70B-Instruct | 1298ms] "In terms of the roadmap, the digital transformation project has completed phase 2, achieving 85% of the planned target, the new CRM system has been configured and is currently in the testing process for 50 users belonging to the economic sector."
-[2m2026-07-18T15:02:12.779Z[0m [2m[32m[REPLY][0m → translation.final
-[2m2026-07-18T15:02:13.425Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt_final | 425.3ms] utt=[33m548e80ae-2ed2-4817-84e0-d7f25813d905[0m ""
-[2m2026-07-18T15:02:13.426Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:02:13.629Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m474[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=17804ms)
-[2m2026-07-18T15:02:14.422Z[0m [35m[1m[EVENT][0m [36mmic-speaker-a[0m utterance.end   — id=[33m548e80ae-2ed2-4817-84e0-d7f25813d905[0m reason=session_end duration=3627.8400000035763ms snr=10.98dB clipping=0 dropped=0
-[2m2026-07-18T15:02:14.424Z[0m [2m[32m[REPLY][0m → stream.ack
-[2m2026-07-18T15:02:14.427Z[0m [41m[1m[37m[DISCONNECT][0m [36mmic-speaker-a[0m Client disconnected — session summary: [1m494[0m chunks, [1m19.0s[0m audio, [1m2[0m utterances, [1m18.8s[0m connected
-[2m2026-07-18T15:02:14.499Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt_final | 465.9ms] utt=[33m548e80ae-2ed2-4817-84e0-d7f25813d905[0m ""
-[2m2026-07-18T15:02:15.215Z[0m [42m[1m[37m[STT FINAL][0m [36mmic-speaker-a[0m [backend=fpt_final | 783.3ms] utt=[33m548e80ae-2ed2-4817-84e0-d7f25813d905[0m ""
-[2m2026-07-18T15:03:37.201Z[0m [44m[1m[37m[CONNECT][0m New client connected
-[2m2026-07-18T15:03:37.203Z[0m [32m[1m[EVENT][0m [36mmic-speaker-a[0m session.start — session=[33mses-30367fe8-6ede-4e4d-a284-d997face343d[0m platform=web codec=pcm_s16le sample_rate=16000
-[2m2026-07-18T15:03:37.204Z[0m [2m[32m[REPLY][0m → session.accepted
-[2m2026-07-18T15:03:37.205Z[0m [32m[1m[EVENT][0m [36mmic-speaker-a[0m source.register — speaker=[35mspeaker-a[0m lang=vi mic=mic-speaker-a
-[2m2026-07-18T15:03:37.207Z[0m [2m[32m[REPLY][0m → source.accepted
-[2m2026-07-18T15:03:37.781Z[0m [35m[1m[EVENT][0m [36mmic-speaker-a[0m utterance.start — id=[33mfa888079-a4cc-4454-b49b-470cee3f125c[0m start=262.7699999958277ms speaker=speaker-a vad_engine=energy-vad speech_prob=0.9999999999936655 pre_roll=280ms
-[2m2026-07-18T15:03:37.783Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m0[0m from [35mspeaker-a[0m (20ms, 640B, vad=0.90, capture=243ms)
-[2m2026-07-18T15:03:38.181Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m24[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=643ms)
-[2m2026-07-18T15:03:39.181Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m49[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=1643ms)
-[2m2026-07-18T15:03:39.207Z[0m [35m[1m[EVENT][0m [36mmic-speaker-a[0m utterance.end   — id=[33mfa888079-a4cc-4454-b49b-470cee3f125c[0m reason=session_end duration=1745.530000001192ms snr=11.6dB clipping=0 dropped=0
-[2m2026-07-18T15:03:39.209Z[0m [2m[32m[REPLY][0m → stream.ack
-[2m2026-07-18T15:03:39.212Z[0m [41m[1m[37m[DISCONNECT][0m [36mmic-speaker-a[0m Client disconnected — session summary: [1m50[0m chunks, [1m1.7s[0m audio, [1m1[0m utterances, [1m2.0s[0m connected
-[2m2026-07-18T15:03:39.273Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt_final | 486.1ms] utt=[33mfa888079-a4cc-4454-b49b-470cee3f125c[0m ""
-[2m2026-07-18T15:03:39.406Z[0m [42m[1m[37m[STT FINAL][0m [36mmic-speaker-a[0m [backend=fpt_final | 188.5ms] utt=[33mfa888079-a4cc-4454-b49b-470cee3f125c[0m "Cảm ơn."
-[2m2026-07-18T15:03:39.706Z[0m [35m[1m[TRANSLATION][0m [36mmic-speaker-a[0m [Llama-3.3-70B-Instruct | 299ms] "Thank you."
-[2m2026-07-18T15:04:05.162Z[0m [44m[1m[37m[CONNECT][0m New client connected
-[2m2026-07-18T15:04:05.166Z[0m [32m[1m[EVENT][0m [36mmic-speaker-a[0m session.start — session=[33mses-c2020b62-5f9e-41fa-a720-d985ce644576[0m platform=web codec=pcm_s16le sample_rate=16000
-[2m2026-07-18T15:04:05.168Z[0m [2m[32m[REPLY][0m → session.accepted
-[2m2026-07-18T15:04:05.169Z[0m [32m[1m[EVENT][0m [36mmic-speaker-a[0m source.register — speaker=[35mspeaker-a[0m lang=en mic=mic-speaker-a
-[2m2026-07-18T15:04:05.171Z[0m [2m[32m[REPLY][0m → source.accepted
-[2m2026-07-18T15:04:05.744Z[0m [35m[1m[EVENT][0m [36mmic-speaker-a[0m utterance.start — id=[33m44775882-7f29-40eb-9579-9f91effefe9e[0m start=264.0649999976158ms speaker=speaker-a vad_engine=energy-vad speech_prob=0.9999999997645852 pre_roll=280ms
-[2m2026-07-18T15:04:05.746Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m0[0m from [35mspeaker-a[0m (20ms, 640B, vad=0.90, capture=244ms)
-[2m2026-07-18T15:04:06.144Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m24[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=644ms)
-[2m2026-07-18T15:04:06.935Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt_final | 183.8ms] utt=[33m44775882-7f29-40eb-9579-9f91effefe9e[0m "or from your heels."
-[2m2026-07-18T15:04:06.936Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:04:07.144Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m49[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=1644ms)
-[2m2026-07-18T15:04:08.015Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt_final | 261ms] utt=[33m44775882-7f29-40eb-9579-9f91effefe9e[0m "Every morning"
-[2m2026-07-18T15:04:08.019Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:04:08.145Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m74[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=2644ms)
-[2m2026-07-18T15:04:08.971Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt_final | 217.1ms] utt=[33m44775882-7f29-40eb-9579-9f91effefe9e[0m "Every morning I wake up on a single"
-[2m2026-07-18T15:04:08.973Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:04:09.145Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m99[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=3644ms)
-[2m2026-07-18T15:04:10.035Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt_final | 274.1ms] utt=[33m44775882-7f29-40eb-9579-9f91effefe9e[0m "Every morning I wake up at 6 o'clock"
-[2m2026-07-18T15:04:10.038Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:04:10.145Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m124[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=4644ms)
-[2m2026-07-18T15:04:11.022Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt_final | 265ms] utt=[33m44775882-7f29-40eb-9579-9f91effefe9e[0m "Every morning, I wake up at 6 o'clock. First, I burst my teeth."
-[2m2026-07-18T15:04:11.025Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:04:11.145Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m149[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=5644ms)
-[2m2026-07-18T15:04:12.072Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt_final | 275.7ms] utt=[33m44775882-7f29-40eb-9579-9f91effefe9e[0m "Every morning, I wake up at 6 o'clock. First, I burst my teeth and wash my face."
-[2m2026-07-18T15:04:12.076Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:04:12.145Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m174[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=6644ms)
-[2m2026-07-18T15:04:13.080Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt_final | 280.8ms] utt=[33m44775882-7f29-40eb-9579-9f91effefe9e[0m "Every morning, I wake up at 6 o'clock. First, I burst my teeth and watch my face."
-[2m2026-07-18T15:04:13.081Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:04:13.145Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m199[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=7644ms)
-[2m2026-07-18T15:04:14.108Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt_final | 273.4ms] utt=[33m44775882-7f29-40eb-9579-9f91effefe9e[0m "I wake up at 6 o'clock. First, I burst my teeth and wash my face. Then, I make a"
-[2m2026-07-18T15:04:14.112Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:04:14.145Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m224[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=8644ms)
-[2m2026-07-18T15:04:15.081Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt_final | 246.5ms] utt=[33m44775882-7f29-40eb-9579-9f91effefe9e[0m "First I burst my teeth and watch my face. Then I make a clip."
-[2m2026-07-18T15:04:15.082Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:04:15.144Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m249[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=9644ms)
-[2m2026-07-18T15:04:16.104Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt_final | 266.5ms] utt=[33m44775882-7f29-40eb-9579-9f91effefe9e[0m "I burst my teeth and wash my face. Then I make a cup of hot tea"
-[2m2026-07-18T15:04:16.105Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:04:16.146Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m274[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=10644ms)
-[2m2026-07-18T15:04:17.123Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt_final | 249.9ms] utt=[33m44775882-7f29-40eb-9579-9f91effefe9e[0m "and wash my face. Then I make a cup of hot tea and eat breakfast."
-[2m2026-07-18T15:04:17.124Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:04:17.145Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m299[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=11644ms)
-[2m2026-07-18T15:04:18.115Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt_final | 241.4ms] utt=[33m44775882-7f29-40eb-9579-9f91effefe9e[0m "Then I make a cup of hot tea and eat breakfast."
-[2m2026-07-18T15:04:18.116Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:04:18.145Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m324[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=12644ms)
-[2m2026-07-18T15:04:19.128Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt_final | 252.3ms] utt=[33m44775882-7f29-40eb-9579-9f91effefe9e[0m "make a cup of hot tea and eat breakfast. I usually eat breakfast"
-[2m2026-07-18T15:04:19.131Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:04:19.144Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m349[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=13644ms)
-[2m2026-07-18T15:04:20.123Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt_final | 250.5ms] utt=[33m44775882-7f29-40eb-9579-9f91effefe9e[0m "make a cup of hot tea and eat breakfast. I usually eat bread and eat"
-[2m2026-07-18T15:04:20.125Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:04:20.144Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m374[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=14644ms)
-[2m2026-07-18T15:04:20.625Z[0m [35m[1m[EVENT][0m [36mmic-speaker-a[0m utterance.end   — id=[33m44775882-7f29-40eb-9579-9f91effefe9e[0m reason=max_duration duration=14880.305000007153ms snr=10.43dB clipping=0.0094 dropped=0
-[2m2026-07-18T15:04:20.628Z[0m [2m[32m[REPLY][0m → stream.ack
-[2m2026-07-18T15:04:20.630Z[0m [35m[1m[EVENT][0m [36mmic-speaker-a[0m utterance.start — id=[33m97eec601-89e4-4e3d-a753-a5bcc9c1ab1a[0m start=15144.370000004768ms speaker=speaker-a vad_engine=energy-vad speech_prob=1 pre_roll=0ms
-[2m2026-07-18T15:04:20.988Z[0m [42m[1m[37m[STT FINAL][0m [36mmic-speaker-a[0m [backend=fpt_final | 347.5ms] utt=[33m44775882-7f29-40eb-9579-9f91effefe9e[0m "Every morning I wake up at 6 o'clock. First I brush my teeth and wash my face. Then I make a cup of hot tea and eat breakfast. I usually eat breakfast and eat for"
-[2m2026-07-18T15:04:20.991Z[0m [2m[32m[REPLY][0m → stt.final
-[2m2026-07-18T15:04:21.145Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m399[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.10, capture=15644ms)
-[2m2026-07-18T15:04:21.840Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt_final | 169ms] utt=[33m97eec601-89e4-4e3d-a753-a5bcc9c1ab1a[0m "Riff."
-[2m2026-07-18T15:04:21.841Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:04:22.144Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m424[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.10, capture=16644ms)
-[2m2026-07-18T15:04:22.163Z[0m [35m[1m[TRANSLATION][0m [36mmic-speaker-a[0m [Llama-3.3-70B-Instruct | 1169ms] "Mỗi buổi sáng tôi thức dậy vào 6 giờ. Đầu tiên tôi đánh răng và rửa mặt. Sau đó tôi pha một tách trà nóng và ăn bữa sáng. Tôi thường ăn bữa sáng và ăn trong"
-[2m2026-07-18T15:04:22.165Z[0m [2m[32m[REPLY][0m → translation.final
-[2m2026-07-18T15:04:22.887Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt_final | 215ms] utt=[33m97eec601-89e4-4e3d-a753-a5bcc9c1ab1a[0m "breakfast because"
-[2m2026-07-18T15:04:22.888Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:04:23.144Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m449[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.10, capture=17644ms)
-[2m2026-07-18T15:04:23.687Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m474[0m from [35mspeaker-a[0m (20ms, 640B, vad=0.90, capture=18164ms)
-[2m2026-07-18T15:04:23.898Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt_final | 225.4ms] utt=[33m97eec601-89e4-4e3d-a753-a5bcc9c1ab1a[0m "Breakfast, be cut, Zayn."
-[2m2026-07-18T15:04:23.899Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:04:24.344Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m499[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=18844ms)
-[2m2026-07-18T15:04:24.936Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt_final | 222.5ms] utt=[33m97eec601-89e4-4e3d-a753-a5bcc9c1ab1a[0m "breakfast because they give me energy"
-[2m2026-07-18T15:04:24.940Z[0m [2m[32m[REPLY][0m → stt.partial
-[2m2026-07-18T15:04:25.265Z[0m [35m[1m[EVENT][0m [36mmic-speaker-a[0m utterance.end   — id=[33m97eec601-89e4-4e3d-a753-a5bcc9c1ab1a[0m reason=vad_silence duration=4640.094999998808ms snr=10.41dB clipping=0 dropped=0
-[2m2026-07-18T15:04:25.267Z[0m [2m[32m[REPLY][0m → stream.ack
-[2m2026-07-18T15:04:25.496Z[0m [42m[1m[37m[STT FINAL][0m [36mmic-speaker-a[0m [backend=fpt_final | 222.1ms] utt=[33m97eec601-89e4-4e3d-a753-a5bcc9c1ab1a[0m "breakfast because they give me energy"
-[2m2026-07-18T15:04:25.497Z[0m [2m[32m[REPLY][0m → stt.final
-[2m2026-07-18T15:04:25.834Z[0m [35m[1m[TRANSLATION][0m [36mmic-speaker-a[0m [Llama-3.3-70B-Instruct | 335ms] "bữa sáng vì chúng mang lại năng lượng cho tôi"
-[2m2026-07-18T15:04:25.837Z[0m [2m[32m[REPLY][0m → translation.final
-[2m2026-07-18T15:04:27.965Z[0m [35m[1m[EVENT][0m [36mmic-speaker-a[0m utterance.start — id=[33m0ca3509c-757a-4130-874e-faaff2fae505[0m start=22484.290000006557ms speaker=speaker-a vad_engine=energy-vad speech_prob=0.08682042823067279 pre_roll=400ms
-[2m2026-07-18T15:04:27.967Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m524[0m from [35mspeaker-a[0m (20ms, 640B, vad=0.90, capture=22445ms)
-[2m2026-07-18T15:04:28.265Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m549[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=22765ms)
-[2m2026-07-18T15:04:28.784Z[0m [35m[1m[EVENT][0m [36mmic-speaker-a[0m utterance.end   — id=[33m0ca3509c-757a-4130-874e-faaff2fae505[0m reason=vad_silence duration=819.8499999940395ms snr=12.18dB clipping=0 dropped=0
-[2m2026-07-18T15:04:28.787Z[0m [2m[32m[REPLY][0m → stream.ack
-[2m2026-07-18T15:04:28.903Z[0m [41m[1m[37m[DISCONNECT][0m [36mmic-speaker-a[0m Client disconnected — session summary: [1m562[0m chunks, [1m21.4s[0m audio, [1m3[0m utterances, [1m23.7s[0m connected
-[2m2026-07-18T15:04:28.958Z[0m [42m[1m[37m[STT FINAL][0m [36mmic-speaker-a[0m [backend=fpt_final | 165.7ms] utt=[33m0ca3509c-757a-4130-874e-faaff2fae505[0m "What?"
-[2m2026-07-18T15:04:29.142Z[0m [35m[1m[TRANSLATION][0m [36mmic-speaker-a[0m [Llama-3.3-70B-Instruct | 183ms] "Tại sao?"
+[2m2026-07-18T23:58:29.016Z[0m [44m[1m[37m[CONNECT][0m New client connected
+[2m2026-07-18T23:58:29.019Z[0m [36m[SESSION][0m [36mses-41f6db6f-8365-4fad-a93d-cea5b57e08a4[0m registered ??? members now 1
+[2m2026-07-18T23:58:29.020Z[0m [32m[1m[EVENT][0m [36mmic-speaker-a[0m session.start — session=[33mses-41f6db6f-8365-4fad-a93d-cea5b57e08a4[0m platform=web codec=pcm_s16le sample_rate=16000
+[2m2026-07-18T23:58:29.021Z[0m [2m[32m[REPLY][0m → session.accepted
+[2m2026-07-18T23:58:29.023Z[0m [32m[1m[EVENT][0m [36mmic-speaker-a[0m source.register — speaker=[35mspeaker-a[0m lang=vi mic=mic-speaker-a
+[2m2026-07-18T23:58:29.025Z[0m [2m[32m[REPLY][0m → source.accepted
+[2m2026-07-18T23:58:29.355Z[0m [35m[1m[EVENT][0m [36mmic-speaker-a[0m utterance.start — id=[33m00e466ee-aed0-4aaf-a5a1-ed1511786bd9[0m start=218.80499999970198ms speaker=speaker-a vad_engine=energy-vad speech_prob=0.9857749465826656 pre_roll=220ms
+[2m2026-07-18T23:58:29.362Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m0[0m from [35mspeaker-a[0m (20ms, 640B, vad=0.90, capture=178ms)
+[2m2026-07-18T23:58:29.892Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m24[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=738ms)
+[2m2026-07-18T23:58:30.882Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m49[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=1728ms)
+[2m2026-07-18T23:58:31.654Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 248ms] utt=[33m00e466ee-aed0-4aaf-a5a1-ed1511786bd9[0m "báo cáo cập nhật tiến độ dự án"
+[2m2026-07-18T23:58:31.655Z[0m [2m[32m[BROADCAST][0m [36mses-41f6db6f-8365-4fad-a93d-cea5b57e08a4[0m ??? stt.partial ?? 1 clients
+[2m2026-07-18T23:58:31.882Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m74[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=2728ms)
+[2m2026-07-18T23:58:32.883Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m99[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=3728ms)
+[2m2026-07-18T23:58:33.720Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 350.4ms] utt=[33m00e466ee-aed0-4aaf-a5a1-ed1511786bd9[0m "báo cáo cập nhật tiến độ dự án đi tổ chăn pho quy ba"
+[2m2026-07-18T23:58:33.722Z[0m [2m[32m[BROADCAST][0m [36mses-41f6db6f-8365-4fad-a93d-cea5b57e08a4[0m ??? stt.partial ?? 1 clients
+[2m2026-07-18T23:58:33.882Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m124[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=4728ms)
+[2m2026-07-18T23:58:34.882Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m149[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=5728ms)
+[2m2026-07-18T23:58:35.733Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 361.6ms] utt=[33m00e466ee-aed0-4aaf-a5a1-ed1511786bd9[0m "báo cáo cập nhật tiến độ dự án đi tổ chăn pho quy ba kính từ ban giám đốc và các thành viên trong hội đồng quản"
+[2m2026-07-18T23:58:35.734Z[0m [2m[32m[BROADCAST][0m [36mses-41f6db6f-8365-4fad-a93d-cea5b57e08a4[0m ??? stt.partial ?? 1 clients
+[2m2026-07-18T23:58:35.883Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m174[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=6729ms)
+[2m2026-07-18T23:58:36.883Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m199[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=7729ms)
+[2m2026-07-18T23:58:37.790Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 377.9ms] utt=[33m00e466ee-aed0-4aaf-a5a1-ed1511786bd9[0m "đi tổ chăn pho quy ba kính từ ban giám đốc và các thành viên trong hội đồng quản trị tôi xin phép cập nhật nhanh tình hình triển khai"
+[2m2026-07-18T23:58:37.792Z[0m [2m[32m[BROADCAST][0m [36mses-41f6db6f-8365-4fad-a93d-cea5b57e08a4[0m ??? stt.partial ?? 1 clients
+[2m2026-07-18T23:58:37.883Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m224[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=8729ms)
+[2m2026-07-18T23:58:38.883Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m249[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=9728ms)
+[2m2026-07-18T23:58:39.842Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 391.2ms] utt=[33m00e466ee-aed0-4aaf-a5a1-ed1511786bd9[0m "kính từ ban giám đốc và các thành viên trong hội đồng quản trị tôi xin phép cập nhật nhanh tình hình triển khai hệ thống e rờ pê và các chỉ số tài chính đến ngày"
+[2m2026-07-18T23:58:39.843Z[0m [2m[32m[BROADCAST][0m [36mses-41f6db6f-8365-4fad-a93d-cea5b57e08a4[0m ??? stt.partial ?? 1 clients
+[2m2026-07-18T23:58:39.883Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m274[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=10728ms)
+[2m2026-07-18T23:58:40.883Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m299[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=11728ms)
+[2m2026-07-18T23:58:41.818Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 367.9ms] utt=[33m00e466ee-aed0-4aaf-a5a1-ed1511786bd9[0m "nghị tôi xin phép cập nhật nhanh tình hình triển khai hệ thống e rờ pê và các chỉ số tài chính đến ngày hôm nay về mặt tiến độ dự án"
+[2m2026-07-18T23:58:41.819Z[0m [2m[32m[BROADCAST][0m [36mses-41f6db6f-8365-4fad-a93d-cea5b57e08a4[0m ??? stt.partial ?? 1 clients
+[2m2026-07-18T23:58:41.883Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m324[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=12728ms)
+[2m2026-07-18T23:58:42.882Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m349[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=13727ms)
+[2m2026-07-18T23:58:43.829Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 374.5ms] utt=[33m00e466ee-aed0-4aaf-a5a1-ed1511786bd9[0m "thống e rờ pê và các chỉ số tài chính đến ngày hôm nay về mặt tiến độ dự án chuyển đổi số đã hoàn thành giai đoạn hai và tám mươi lăm"
+[2m2026-07-18T23:58:43.830Z[0m [2m[32m[BROADCAST][0m [36mses-41f6db6f-8365-4fad-a93d-cea5b57e08a4[0m ??? stt.partial ?? 1 clients
+[2m2026-07-18T23:58:43.882Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m374[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=14728ms)
+[2m2026-07-18T23:58:44.882Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m399[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=15728ms)
+[2m2026-07-18T23:58:45.813Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 357.5ms] utt=[33m00e466ee-aed0-4aaf-a5a1-ed1511786bd9[0m "nay về mặt tiến độ dự án chuyển đổi số đã hoàn thành giai đoạn hai và tám mươi lăm phần trăm kế hoạch đề ra hệ thống"
+[2m2026-07-18T23:58:45.814Z[0m [2m[32m[BROADCAST][0m [36mses-41f6db6f-8365-4fad-a93d-cea5b57e08a4[0m ??? stt.partial ?? 1 clients
+[2m2026-07-18T23:58:45.882Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m424[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=16728ms)
+[2m2026-07-18T23:58:46.883Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m449[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=17729ms)
+[2m2026-07-18T23:58:47.842Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 380.6ms] utt=[33m00e466ee-aed0-4aaf-a5a1-ed1511786bd9[0m "chuyển đổi số đã hoàn thành giai đoạn hai và tám mươi lăm phần trăm kích đề ra hệ thống xê rờ mờ mới đã được cấu hình xong và đang trong"
+[2m2026-07-18T23:58:47.843Z[0m [2m[32m[BROADCAST][0m [36mses-41f6db6f-8365-4fad-a93d-cea5b57e08a4[0m ??? stt.partial ?? 1 clients
+[2m2026-07-18T23:58:47.882Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m474[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=18728ms)
+[2m2026-07-18T23:58:48.883Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m499[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=19728ms)
+[2m2026-07-18T23:58:49.842Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 381.4ms] utt=[33m00e466ee-aed0-4aaf-a5a1-ed1511786bd9[0m "phần trăm kê đề ra hệ thống xê rờ mờ mới đã được cấu hình xong và đang trong quá trình chạy thử nghiệm cho năm mươi người"
+[2m2026-07-18T23:58:49.843Z[0m [2m[32m[BROADCAST][0m [36mses-41f6db6f-8365-4fad-a93d-cea5b57e08a4[0m ??? stt.partial ?? 1 clients
+[2m2026-07-18T23:58:49.882Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m524[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=20728ms)
+[2m2026-07-18T23:58:50.883Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m549[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=21728ms)
+[2m2026-07-18T23:58:51.803Z[0m [32m[1m[STT PARTIAL][0m [36mmic-speaker-a[0m [backend=fpt | 339.6ms] utt=[33m00e466ee-aed0-4aaf-a5a1-ed1511786bd9[0m "rờ mờ mới đã được câu hình xong và đang trong quá trình chạy thử nghiệm cho năm mươi người dùng thuộc khối kinh doanh"
+[2m2026-07-18T23:58:51.805Z[0m [2m[32m[BROADCAST][0m [36mses-41f6db6f-8365-4fad-a93d-cea5b57e08a4[0m ??? stt.partial ?? 1 clients
+[2m2026-07-18T23:58:51.882Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m574[0m from [35mspeaker-a[0m (40ms, 1280B, vad=0.90, capture=22728ms)
+[2m2026-07-18T23:58:52.142Z[0m [35m[1m[EVENT][0m [36mmic-speaker-a[0m utterance.end   — id=[33m00e466ee-aed0-4aaf-a5a1-ed1511786bd9[0m reason=vad_silence duration=22789.18499999866ms snr=11.23dB clipping=0 dropped=0
+[2m2026-07-18T23:58:52.145Z[0m [2m[32m[REPLY][0m → stream.ack
+[2m2026-07-18T23:58:53.043Z[0m [42m[1m[37m[STT FINAL][0m [36mmic-speaker-a[0m [backend=fpt_final | 888ms] utt=[33m00e466ee-aed0-4aaf-a5a1-ed1511786bd9[0m "Báo cáo cập nhật tiến độ dự án Digital Transformation Quý 3. Tính từ bàn giám đốc và các thành viên trong hội đồng quản trị, tôi xin phép cập nhật nhanh tình hình triển khai hệ thống ERP và các trẻ số tài trị đến ngày hôm nay. Về mặt tiến độ, dự án chuyển đổi số đã hoàn thành giai đoạn 2, đã 85% kếp đề ra. Hệ thống CRM mới đã được câu hình xong và đang trong quá trình trải thử nghiệm cho 50 người dùng thuộc khối kinh doanh."
+[2m2026-07-18T23:58:53.045Z[0m [2m[32m[BROADCAST][0m [36mses-41f6db6f-8365-4fad-a93d-cea5b57e08a4[0m ??? stt.final ?? 1 clients
+[2m2026-07-18T23:58:55.188Z[0m [35m[1m[TRANSLATION][0m [36mmic-speaker-a[0m [Llama-3.3-70B-Instruct | 2138ms] "Update report on the progress of the Digital Transformation Project for Quarter 3. On behalf of the board of directors and members of the management board, I would like to provide a brief update on the implementation of the ERP system and key financial indicators as of today. In terms of progress, the digital transformation project has completed phase 2, with 85% objectives achieved. The new CRM system has been configured and is currently being tested by 50 users in the business division."
+[2m2026-07-18T23:58:55.190Z[0m [2m[32m[BROADCAST][0m [36mses-41f6db6f-8365-4fad-a93d-cea5b57e08a4[0m ??? translation.final ?? 1 clients
+[2m2026-07-18T23:58:55.622Z[0m [35m[1m[EVENT][0m [36mmic-speaker-a[0m utterance.start — id=[33m4a70cbf1-0f4a-419b-8078-a052583a74b1[0m start=26488.019999999553ms speaker=speaker-a vad_engine=energy-vad speech_prob=0.9159946116880967 pre_roll=400ms
+[2m2026-07-18T23:58:55.793Z[0m [36m[1m[AUDIO][0m [36mmic-speaker-a[0m chunk #[33m599[0m from [35mspeaker-a[0m (20ms, 640B, vad=0.90, capture=26449ms)
+[2m2026-07-18T23:58:56.122Z[0m [35m[1m[EVENT][0m [36mmic-speaker-a[0m utterance.end   — id=[33m4a70cbf1-0f4a-419b-8078-a052583a74b1[0m reason=session_end duration=631.7250000014901ms snr=12.84dB clipping=0 dropped=0
+[2m2026-07-18T23:58:56.124Z[0m [2m[32m[REPLY][0m → stream.ack
+[2m2026-07-18T23:58:56.303Z[0m [42m[1m[37m[STT FINAL][0m [36mmic-speaker-a[0m [backend=fpt_final | 174.1ms] utt=[33m4a70cbf1-0f4a-419b-8078-a052583a74b1[0m "rồi đó là"
+[2m2026-07-18T23:58:56.304Z[0m [2m[32m[BROADCAST][0m [36mses-41f6db6f-8365-4fad-a93d-cea5b57e08a4[0m ??? stt.final ?? 1 clients
+[2m2026-07-18T23:58:56.449Z[0m [35m[1m[TRANSLATION][0m [36mmic-speaker-a[0m [Llama-3.3-70B-Instruct | 143ms] "then that is"
+[2m2026-07-18T23:58:56.451Z[0m [2m[32m[BROADCAST][0m [36mses-41f6db6f-8365-4fad-a93d-cea5b57e08a4[0m ??? translation.final ?? 1 clients
+[2m2026-07-18T23:58:58.641Z[0m [2m[SESSION][0m [36mses-41f6db6f-8365-4fad-a93d-cea5b57e08a4[0m deregistered ??? members now 0
+[2m2026-07-18T23:58:58.643Z[0m [41m[1m[37m[DISCONNECT][0m [36mmic-speaker-a[0m Client disconnected — session summary: [1m613[0m chunks, [1m23.9s[0m audio, [1m2[0m utterances, [1m29.6s[0m connected

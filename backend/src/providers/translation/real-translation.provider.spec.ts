@@ -115,6 +115,7 @@ describe('RealTranslationProvider', () => {
       'https://mkp-api.fptcloud.com/v1/chat/completions',
       expect.objectContaining({
         model: 'Llama-3.3-70B-Instruct',
+        messages: expect.any(Array),
       }),
       expect.objectContaining({
         timeout: 5000,

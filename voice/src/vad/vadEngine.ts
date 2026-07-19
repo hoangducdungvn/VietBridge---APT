@@ -63,8 +63,8 @@ const DEFAULT_CONFIG: VadConfig = {
   speechEndThreshold: 0.22,     // tolerate soft syllables and room noise dips before ending
   minSpeechMs: 150,             // raised 120→150ms: filters mic pops and single clicks
   preRollMs: 400,               // raised 200→400ms: keep breath intake + leading consonants ("H" in "Hello")
-  endSilenceMs: 700,            // realtime budget: leave ~2.3s for final STT + translation
-  maxUtteranceMs: 15_000,       // bound model latency during continuous speech
+  endSilenceMs: 1000,           // keep natural 600-900ms breath pauses in one utterance
+  maxUtteranceMs: 25_000,       // bound model latency while staying below Whisper's 30s limit
   backend: 'energy',  // R2: energy by default; loadSilero() switches to 'silero' on success
 };
 

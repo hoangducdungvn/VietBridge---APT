@@ -62,6 +62,8 @@ export interface VoicePipelineConfig {
   /** Studio mode: raw capture (browser AEC/NS/AGC off) + more sensitive VAD.
    *  Quiet-room + headset only (D11); default false. */
   studioMode?: boolean;
+  /** Grace period after utterance.end so final STT/translation can arrive before disconnect. */
+  finalDrainMs?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -121,6 +123,7 @@ export class VoicePipeline {
       chunkGroupSize: config.chunkGroupSize ?? 2, // 2 × 20ms = 40ms per chunk
       transportFactory: config.transportFactory,
       studioMode: config.studioMode ?? false,
+      finalDrainMs: config.finalDrainMs ?? 2500,
     };
 
     this.events = events;
@@ -312,6 +315,8 @@ export class VoicePipeline {
 
     this.log("Stopping voice pipeline...");
 
+    let closedActiveUtterance = false;
+
     // Close any active utterance
     if (this.utteranceManager?.isActive()) {
       const timestampMs = performance.now() - this.sessionStartTime;
@@ -320,10 +325,16 @@ export class VoicePipeline {
         timestampMs,
         this.transport.getCurrentSequence(),
       );
+      closedActiveUtterance = true;
     }
 
     // Stop capture
     await this.capture.stop();
+
+    if (closedActiveUtterance) {
+      this.log(`Waiting ${this.config.finalDrainMs}ms for final STT results...`);
+      await new Promise((resolve) => setTimeout(resolve, this.config.finalDrainMs));
+    }
 
     // Disconnect WS
     this.transport?.disconnect();

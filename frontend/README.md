@@ -66,6 +66,7 @@ VITE_SUPPORTED_LANGUAGES=vi,en
 ```
 
 Start `backend` on port `3000` before testing create/join in two browser windows.
+For real microphone transcription, also start `stt-service` on port `8001` and set the backend to `STT_PROVIDER=remote`.
 
 ### Test from another machine on the same Wi-Fi
 
