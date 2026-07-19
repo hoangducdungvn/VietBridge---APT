@@ -156,17 +156,25 @@ export class VoicePipeline {
 
     this.log("Starting voice pipeline...");
 
-    // 0. R2: Try to load Silero AI VAD (non-blocking — fallback to energy VAD on error)
+    // 0. Load Silero in the background. Production assets are large enough
+    // that awaiting them here leaves Socket.IO alive while microphone capture
+    // has not started. Energy VAD is ready immediately and remains the runtime
+    // fallback/rescue signal after Silero becomes available.
+    this.reportVadBackend();
     if (this.config.enableSileroVad) {
       this.log("Loading AI VAD model (Silero)...");
-      const sileroLoaded = await this.vad.loadSilero("/models/silero_vad.onnx");
-      if (sileroLoaded) {
-        this.log("AI VAD (Silero) loaded");
-      } else {
-        this.log("Silero unavailable - using energy VAD fallback");
-      }
+      void this.vad
+        .loadSilero("/models/silero_vad.onnx")
+        .then((sileroLoaded) => {
+          if (!this.running) return;
+          this.log(
+            sileroLoaded
+              ? "AI VAD (Silero) loaded"
+              : "Silero unavailable - using energy VAD fallback",
+          );
+          this.reportVadBackend();
+        });
     }
-    this.reportVadBackend();
 
     // 1. Init utterance manager
     const uttCallbacks: UtteranceCallbacks = {

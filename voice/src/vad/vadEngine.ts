@@ -68,6 +68,9 @@ const DEFAULT_CONFIG: VadConfig = {
   backend: 'energy',  // R2: energy by default; loadSilero() switches to 'silero' on success
 };
 
+const SILERO_START_THRESHOLD = 0.5;
+const SILERO_END_THRESHOLD = 0.35;
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -175,10 +178,11 @@ export class VadEngine {
     let probability: number;
     if (this.config.backend === 'silero' && this.silero) {
       this.enqueueSileroSamples(frame);
-      // Energy bridges the first model window. After that Silero is
-      // authoritative unless repeated inference failures trigger fallback.
+      // Keep energy as a rescue signal. This prevents a valid microphone from
+      // becoming completely silent if a device/model combination returns
+      // unexpectedly conservative Silero probabilities.
       probability = this.sileroHasResult
-        ? this.lastSileroProbability
+        ? Math.max(this.lastSileroProbability, energyProbability)
         : energyProbability;
     } else {
       probability = energyProbability;
@@ -438,10 +442,19 @@ export class VadEngine {
     instantProb: number,
     timestampMs: number,
   ): VadEvent | null {
+    const speechStartThreshold =
+      this.config.backend === 'silero'
+        ? SILERO_START_THRESHOLD
+        : this.config.speechStartThreshold;
+    const speechEndThreshold =
+      this.config.backend === 'silero'
+        ? SILERO_END_THRESHOLD
+        : this.config.speechEndThreshold;
+
     switch (this.state) {
       // -----------------------------------------------------------------
       case 'IDLE': {
-        if (windowAvg > this.config.speechStartThreshold) {
+        if (windowAvg > speechStartThreshold) {
           this.state = 'POSSIBLE_SPEECH';
           this.possibleSpeechAccMs = this.config.frameDurationMs;
           this.speechStartTime = timestampMs;
@@ -451,7 +464,7 @@ export class VadEngine {
 
       // -----------------------------------------------------------------
       case 'POSSIBLE_SPEECH': {
-        if (windowAvg > this.config.speechStartThreshold) {
+        if (windowAvg > speechStartThreshold) {
           this.possibleSpeechAccMs += this.config.frameDurationMs;
 
           if (this.possibleSpeechAccMs >= this.config.minSpeechMs) {
@@ -493,7 +506,7 @@ export class VadEngine {
           };
         }
 
-        if (windowAvg < this.config.speechEndThreshold) {
+        if (windowAvg < speechEndThreshold) {
           this.state = 'POSSIBLE_END';
           this.silenceStartTime = timestampMs;
         }
@@ -520,7 +533,7 @@ export class VadEngine {
           };
         }
 
-        if (windowAvg > this.config.speechStartThreshold) {
+        if (windowAvg > speechStartThreshold) {
           // Speech resumed
           this.state = 'SPEAKING';
           return {

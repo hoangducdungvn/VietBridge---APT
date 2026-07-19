@@ -58,6 +58,7 @@ export class WebAudioCaptureAdapter {
   private stream: MediaStream | null = null;
   private workletNode: AudioWorkletNode | null = null;
   private sourceNode: MediaStreamAudioSourceNode | null = null;
+  private silentSinkNode: GainNode | null = null;
   private resampler: Resampler | null = null;
   private sessionStartTime: number = 0;
 
@@ -164,8 +165,14 @@ export class WebAudioCaptureAdapter {
     );
     this.sourceNode = this.context.createMediaStreamSource(this.stream);
     this.sourceNode.connect(this.workletNode);
-    // Do NOT connect the worklet to context.destination — we only need the
-    // data; playing it back would cause feedback.
+    // Web Audio is a pull graph. Some Chromium builds stop invoking an
+    // AudioWorklet that has no path to the destination, which leaves the
+    // microphone track active but produces zero PCM frames. Keep the graph
+    // alive through a muted sink so capture runs without audible feedback.
+    this.silentSinkNode = this.context.createGain();
+    this.silentSinkNode.gain.value = 0;
+    this.workletNode.connect(this.silentSinkNode);
+    this.silentSinkNode.connect(this.context.destination);
 
     // ---- 4. Resampler ----
     // R3: If the browser honoured our 16 kHz request (inputSampleRate === 16000),
@@ -270,6 +277,11 @@ export class WebAudioCaptureAdapter {
       this.workletNode.port.onmessage = null;
       this.workletNode.disconnect();
       this.workletNode = null;
+    }
+
+    if (this.silentSinkNode) {
+      this.silentSinkNode.disconnect();
+      this.silentSinkNode = null;
     }
 
     // Disconnect source

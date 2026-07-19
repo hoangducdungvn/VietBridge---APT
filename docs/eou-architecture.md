@@ -106,6 +106,10 @@ Phần EOU chính ở client tham gia trực tiếp vào việc đóng turn. Fro
 
 Silero v5 dùng contract `input/state/sr -> output/stateN` và cửa sổ 512 mẫu tại 16 kHz. Capture tạo frame 320 mẫu, vì vậy `VadEngine` ghép PCM liên tục thành cửa sổ 512 mẫu thay vì zero-pad hoặc bỏ frame. Nếu model inference lỗi liên tiếp ba lần, client tự chuyển sang energy VAD và cập nhật badge `Basic VAD`; luồng microphone/STT vẫn tiếp tục hoạt động.
 
+AudioWorklet được nối tới `AudioContext.destination` qua một gain node có volume bằng `0`. Kết nối câm này giữ Web Audio pull graph hoạt động ổn định trên Chromium nhưng không phát lại microphone. Khi Silero hoạt động, hệ thống dùng ngưỡng chuẩn v5 `0.50/0.35` và lấy xác suất energy làm tín hiệu cứu hộ để tránh trạng thái socket chỉ còn heartbeat nhưng không có speaking turn.
+
+VoicePipeline không chặn microphone để chờ tải WASM/ONNX. Energy VAD bắt đầu cùng capture ngay lập tức; Silero được tải nền và nâng cấp backend khi sẵn sàng. Vì vậy mạng chậm hoặc cold cache không còn tạo khoảng thời gian dài chỉ thấy Socket.IO `2/3` mà không có `turn.start`.
+
 STT tính EOU trên audio đã normalize nhưng chưa trim, sau đó Backend ánh xạ metadata sang camelCase và giữ nó trong `stt.partial`/`stt.final`. Metadata này phục vụ quan sát ranh giới câu; Pipeline vẫn chỉ final khi client gửi `turn.end`, chưa dùng `eou.isEndpoint` để tự đóng turn.
 
 Do đó, phát biểu chính xác là: hệ thống có client EOU hoàn chỉnh cho luồng realtime và có STT EOU metadata xuyên Backend để chẩn đoán; STT EOU vẫn là tín hiệu advisory, không phải nguồn điều khiển turn thứ hai.
