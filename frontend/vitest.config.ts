@@ -5,6 +5,12 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   resolve: {
     alias: {
+      // Same alias as vite.config.ts: onnxruntime-web's `exports` hides
+      // ./dist/*, and integration tests load the real vietbridge-voice
+      // sources (sileroVad.ts imports the runtime artefacts with ?url).
+      'onnxruntime-web/dist': fileURLToPath(
+        new URL('../voice/node_modules/onnxruntime-web/dist', import.meta.url)
+      ),
       '@domain': fileURLToPath(new URL('./src/domain', import.meta.url)),
       '@application': fileURLToPath(new URL('./src/application', import.meta.url)),
       '@infrastructure': fileURLToPath(new URL('./src/infrastructure', import.meta.url)),

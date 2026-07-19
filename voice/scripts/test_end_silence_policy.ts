@@ -51,12 +51,12 @@ for (const [text, expected] of cases) {
 // Policy end-to-end: closure + ms mapping
 let tail = 'chúng ta sẽ bàn về và';
 const policy = createTieredEndSilencePolicy(() => tail);
-const ctx = { speechDurationMs: 3000, silenceDurationMs: 200, defaultEndSilenceMs: 600 };
-if (policy(ctx) !== 1100) { failed++; console.error('FAIL: connective tail should give 1100ms'); }
+const ctx = { speechDurationMs: 3000, silenceDurationMs: 200, defaultEndSilenceMs: 800 };
+if (policy(ctx) !== 1300) { failed++; console.error('FAIL: connective tail should give 1300ms'); }
 tail = 'Xong rồi.';
 if (policy(ctx) !== 480) { failed++; console.error('FAIL: terminal tail should give 480ms'); }
 tail = 'doanh thu quý này';
-if (policy(ctx) !== 600) { failed++; console.error('FAIL: neutral tail should give 600ms'); }
+if (policy(ctx) !== 800) { failed++; console.error('FAIL: neutral tail should give 800ms'); }
 
 if (failed === 0) {
   console.log(`OK — ${cases.length + 3} assertions passed`);

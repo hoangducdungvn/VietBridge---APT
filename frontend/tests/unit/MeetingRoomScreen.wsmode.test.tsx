@@ -75,7 +75,7 @@ describe('MeetingRoomScreen in ws transport mode', () => {
     expect(config?.sessionId).toBe(activeSession.sessionId);
   });
 
-  it('renders finals in the source pane and translations in the target pane', async () => {
+  it('renders own finals in the own pane and remote translations in the translated pane', async () => {
     renderMeeting();
     await waitFor(() => expect(voiceMocks.start).toHaveBeenCalledTimes(1));
     const events = voiceMocks.captured.current?.events as {
@@ -84,6 +84,7 @@ describe('MeetingRoomScreen in ws transport mode', () => {
     };
 
     act(() => {
+      // Host (vi) speaks — original goes to "Your original transcript".
       events.onSttResult({
         type: 'final',
         text: 'Xin chào mọi người',
@@ -93,24 +94,28 @@ describe('MeetingRoomScreen in ws transport mode', () => {
         utteranceId: 'utt-1',
         speakerId: 'participant-host'
       });
+      // Guest (en) spoke — the gateway fan-outs their translation INTO the
+      // host's language; it must land in the translated-remote pane.
       events.onTranslationResult({
-        utteranceId: 'utt-1',
-        sourceText: 'Xin chào mọi người',
-        translatedText: 'Hello everyone',
-        sourceLang: 'vi',
-        targetLang: 'en',
+        utteranceId: 'utt-2',
+        sourceText: 'Hello everyone',
+        translatedText: 'Chào tất cả mọi người',
+        sourceLang: 'en',
+        targetLang: 'vi',
         model: 'Llama-3.3-70B-Instruct',
         latencyMs: 900,
-        speakerId: 'participant-host'
+        speakerId: 'participant-guest'
       });
     });
 
-    const viPane = screen.getByRole('region', { name: 'Vietnamese transcript' });
-    const enPane = screen.getByRole('region', { name: 'English transcript' });
-    expect(viPane).toHaveTextContent('Xin chào mọi người');
-    expect(enPane).toHaveTextContent('Hello everyone');
-    expect(enPane).toHaveTextContent('Translated');
-    expect(viPane).not.toHaveTextContent('Hello everyone');
+    const ownPane = screen.getByRole('region', { name: 'Your original transcript' });
+    const remotePane = screen.getByRole('region', {
+      name: 'Other participant translated transcript'
+    });
+    expect(ownPane).toHaveTextContent('Xin chào mọi người');
+    expect(remotePane).toHaveTextContent('Chào tất cả mọi người');
+    expect(remotePane).toHaveTextContent('Translated');
+    expect(ownPane).not.toHaveTextContent('Chào tất cả mọi người');
   });
 
   it('clears the stuck live partial when the STT backend errors mid-utterance', async () => {
@@ -128,14 +133,14 @@ describe('MeetingRoomScreen in ws transport mode', () => {
         language: 'vi',
         backend: 'fpt',
         latencyMs: 200,
-        utteranceId: 'utt-2',
+        utteranceId: 'utt-3',
         speakerId: 'participant-host'
       });
     });
     expect(screen.getByText('đang nói dở câu')).toBeInTheDocument();
 
     act(() => {
-      events.onSttError({ utteranceId: 'utt-2', message: 'stt down' });
+      events.onSttError({ utteranceId: 'utt-3', message: 'stt down' });
     });
     expect(screen.queryByText('đang nói dở câu')).not.toBeInTheDocument();
   });
@@ -149,6 +154,7 @@ function renderMeeting() {
       roomName="Room APT001"
       localLanguage="vi"
       otherLanguage="en"
+      messages={[]}
       sttResults={[]}
       onEndMeeting={vi.fn()}
     />

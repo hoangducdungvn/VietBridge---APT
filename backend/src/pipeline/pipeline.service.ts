@@ -19,7 +19,12 @@ import type {
 } from '../turns/turn.types';
 import { TurnsService } from '../turns/turns.service';
 
-const PARTIAL_INTERVAL_BYTES = 2 * 16_000 * 2;
+// 1s of PCM_S16LE @16kHz between partial decodes (was 2s). Benchmark
+// 2026-07-19: FPT partial ASR is ~250-450ms/call, so 1s never piles up
+// (partialTasks already enforces a single in-flight request per turn), and
+// short utterances get at least one partial — which the client-side tiered
+// end-silence policy needs to avoid chopping conversational speech.
+const PARTIAL_INTERVAL_BYTES = 1 * 16_000 * 2;
 
 export interface PipelinePartialResult extends SttTranscriptionResult {
   participantId: string;

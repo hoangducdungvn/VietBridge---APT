@@ -256,56 +256,69 @@ export function MeetingRoomScreen({
   const transportMode = env.transport;
   const results = transportMode === 'ws' ? wsSttResults : sttResults;
 
-  const orderedLanguages = useMemo(
-    () => [localLanguage, otherLanguage] as const,
-    [localLanguage, otherLanguage]
-  );
-  const liveCaptions = useMemo(() => {
-    const captions: Record<'en' | 'vi', string> = { en: '', vi: '' };
-    for (const result of results) {
-      if (result.type === 'partial') captions[result.language] = result.text;
-    }
-    return captions;
-  }, [results]);
-  const transcripts = useMemo(() => {
-    const timeFormat = new Intl.DateTimeFormat('en', {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
-    });
-    const grouped: Record<'en' | 'vi', TranscriptItem[]> = { en: [], vi: [] };
-    results
-      .filter((result) => result.type === 'final' && result.text.trim() !== '')
-      .forEach((result) => {
-        grouped[result.language].push({
+  // Both panes render in the VIEWER's language: left = the other participant's
+  // speech translated for you, right = your own original words.
+  // socketio mode feeds the left pane from NestJS `message.final` events;
+  // ws mode feeds it from the gateway's `translation.final` (translations state).
+  const ownTranscript = useMemo<TranscriptItem[]>(
+    () =>
+      results
+        .filter(
+          (result) =>
+            result.type === 'final' &&
+            result.participantId === activeSession.participantId &&
+            result.text.trim() !== ''
+        )
+        .map((result, turn) => ({
           id: result.turnId,
           text: result.text,
-          timestamp: timeFormat.format(new Date(result.receivedAt)),
-          turn: 0,
-          kind: 'stt',
+          timestamp: formatTimestamp(result.receivedAt),
+          turn,
+          kind: 'stt' as const,
           sortKey: result.receivedAt
-        });
-      });
-    // Translations land in the TARGET-language pane: A speaks VI → the EN
-    // reader finds A's words, translated, in their own pane.
-    translations.forEach((tr) => {
-      grouped[tr.targetLang].push({
-        id: `tr-${tr.turnId}`,
-        text: tr.translatedText,
-        timestamp: timeFormat.format(new Date(tr.receivedAt)),
-        turn: 0,
-        kind: 'translation',
-        sortKey: tr.receivedAt
-      });
-    });
-    for (const language of ['en', 'vi'] as const) {
-      grouped[language].sort((a, b) => a.sortKey - b.sortKey);
-      grouped[language].forEach((item, index) => {
-        item.turn = index;
-      });
+        })),
+    [activeSession.participantId, results]
+  );
+  const translatedRemoteTranscript = useMemo<TranscriptItem[]>(() => {
+    if (transportMode === 'ws') {
+      return translations
+        .filter(
+          (tr) =>
+            tr.participantId !== activeSession.participantId &&
+            tr.targetLang === localLanguage &&
+            tr.translatedText.trim() !== ''
+        )
+        .map((tr, turn) => ({
+          id: `tr-${tr.turnId}`,
+          text: tr.translatedText,
+          timestamp: formatTimestamp(tr.receivedAt),
+          turn,
+          kind: 'translation' as const,
+          sortKey: tr.receivedAt
+        }));
     }
-    return grouped;
-  }, [results, translations]);
+    return messages
+      .filter(
+        (message) =>
+          message.speaker.participantId !== activeSession.participantId &&
+          message.targetLanguage === localLanguage &&
+          message.translatedText.trim() !== ''
+      )
+      .map((message) => ({
+        id: message.messageId,
+        text: message.translatedText,
+        timestamp: formatTimestamp(message.createdAt),
+        turn: message.sequence,
+        kind: 'translation' as const,
+        sortKey: message.createdAt
+      }));
+  }, [activeSession.participantId, localLanguage, messages, translations, transportMode]);
+  const ownPartial = [...results]
+    .reverse()
+    .find(
+      (result) =>
+        result.type === 'partial' && result.participantId === activeSession.participantId
+    );
   const remotePartial = [...results]
     .reverse()
     .find(

@@ -74,9 +74,11 @@ const DEFAULT_CONFIG: VadConfig = {
   speechEndThreshold: 0.28,     // lowered 0.35→0.28: cut speech more aggressively when quiet
   minSpeechMs: 150,             // raised 120→150ms: filters mic pops and single clicks
   preRollMs: 400,               // raised 200→400ms: keep breath intake + leading consonants ("H" in "Hello")
-  endSilenceMs: 600,            // contract §13 baseline; endSilencePolicy extends it per-utterance
-                                // when the transcript tail looks unfinished (was flat 2500ms — that
-                                // added 2.5s to EVERY utterance's time-to-translation)
+  endSilenceMs: 800,            // baseline hangover (contract §13 said 600; raised to 800 after field
+                                // tests showed clause-level breath pauses splitting sentences).
+                                // endSilencePolicy still shortens to ~480ms on terminal punctuation
+                                // and extends on unfinished tails — was flat 2500ms once, which
+                                // added 2.5s to EVERY utterance's time-to-translation
   maxUtteranceMs: 20_000,       // hard cap: bounds replay/buffer memory + final decode latency;
                                 // UtteranceManager continuation chains handle longer monologues
   backend: 'energy',  // R2: energy by default; loadSilero() switches to 'silero' on success
@@ -123,8 +125,14 @@ export class VadEngine {
   private recentEnergies: number[] = [];
   private recentEnergiesIdx = 0;
   private readonly RECENT_ENERGY_FRAMES = 100; // 2s @ 20ms
+  /** Floor recovery may only engage after this much continuous speech —
+   *  normal sentences must never trip it (see processFrame step 5). */
+  private readonly FLOOR_RECOVERY_AFTER_MS = 5000;
   /** Non-zero while a stale floor is being ramped back up mid-speech. */
   private floorRecoveryTarget = 0;
+  /** Loudest frame energy seen in the current utterance — reference for the
+   *  "has the speaker actually stopped?" discriminator. */
+  private utteranceSpeechPeak = 0;
 
   // Accumulator for POSSIBLE_SPEECH duration ---
   private possibleSpeechAccMs: number = 0;
@@ -144,6 +152,8 @@ export class VadEngine {
   private lastSileroProbability = 0;
   /** Pending async Silero inference (avoids overlapping calls). */
   private sileroInferring = false;
+  /** Consecutive Silero inference failures — triggers energy fallback at 5. */
+  private sileroFailureCount = 0;
 
   constructor(config?: Partial<VadConfig>) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -196,8 +206,21 @@ export class VadEngine {
         this.silero.infer(frame).then((p) => {
           this.lastSileroProbability = p;
           this.sileroInferring = false;
-        }).catch(() => {
+          this.sileroFailureCount = 0;
+        }).catch((err) => {
           this.sileroInferring = false;
+          // A silently-broken Silero leaves probability stuck at 0 — the VAD
+          // goes completely deaf. Surface the first error, and after repeated
+          // failures fall back to the energy backend so capture keeps working.
+          this.sileroFailureCount++;
+          if (this.sileroFailureCount === 1) {
+            console.warn('[VadEngine] Silero inference failed:', err);
+          }
+          if (this.sileroFailureCount >= 5) {
+            console.warn('[VadEngine] Silero failing repeatedly — reverting to energy VAD');
+            this.config.backend = 'energy';
+            this.silero = null;
+          }
         });
       }
     } else {
@@ -223,11 +246,30 @@ export class VadEngine {
     this.recentEnergiesIdx = (this.recentEnergiesIdx + 1) % this.RECENT_ENERGY_FRAMES;
     if (this.state === 'IDLE' || this.state === 'POSSIBLE_END') {
       this.floorRecoveryTarget = 0; // EMA is live again — no recovery needed
+      this.utteranceSpeechPeak = 0;
       this.updateNoiseFloor(energy);
     } else if (this.recentEnergies.length >= this.RECENT_ENERGY_FRAMES) {
-      const recentMin = Math.min(...this.recentEnergies);
-      if (recentMin > this.noiseFloorEstimate * 6) {
-        this.floorRecoveryTarget = recentMin * 2.5;
+      this.utteranceSpeechPeak = Math.max(this.utteranceSpeechPeak, energy);
+      // Deadlock recovery — engages ONLY when ALL THREE hold:
+      //   1. the turn has been open unusually long (>5s), AND
+      //   2. the loudest frame of the last 2s sits ≥12dB BELOW this
+      //      utterance's own speech peak — someone still talking always has
+      //      frames near their peak, so a long sentence can never trip this
+      //      (a duration-only gate used to chop real speech at ~11s), AND
+      //   3. the quietest recent frame is still >8dB above the frozen floor
+      //      (otherwise the normal end-of-turn path already works).
+      // Then ramp the floor toward the ambient level so the turn can close
+      // instead of hanging to maxUtteranceMs.
+      const speakerStopped =
+        Math.max(...this.recentEnergies) < this.utteranceSpeechPeak / 16;
+      if (
+        timestampMs - this.speechStartTime > this.FLOOR_RECOVERY_AFTER_MS &&
+        speakerStopped
+      ) {
+        const recentMin = Math.min(...this.recentEnergies);
+        if (recentMin > this.noiseFloorEstimate * 6) {
+          this.floorRecoveryTarget = recentMin * 2.5;
+        }
       }
       if (this.floorRecoveryTarget > this.noiseFloorEstimate) {
         this.noiseFloorEstimate = Math.min(
@@ -312,6 +354,7 @@ export class VadEngine {
     this.recentEnergies = [];
     this.recentEnergiesIdx = 0;
     this.floorRecoveryTarget = 0;
+    this.utteranceSpeechPeak = 0;
     // Keep noise floor estimate across resets for continuity
     // R2: Reset Silero hidden states too
     this.silero?.reset();

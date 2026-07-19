@@ -32,8 +32,8 @@ export interface TieredEndSilenceConfig {
 }
 
 export const DEFAULT_TIERED_CONFIG: TieredEndSilenceConfig = {
-  defaultMs: 600,
-  extendedMs: 1100,
+  defaultMs: 800,
+  extendedMs: 1300,
   shortMs: 480,
 };
 

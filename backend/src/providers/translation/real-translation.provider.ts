@@ -5,6 +5,7 @@ import { firstValueFrom } from 'rxjs';
 import { AxiosError, AxiosResponse } from 'axios';
 import { TranslationProvider } from './translation-provider.interface';
 import { TranslationInput, TranslationResult } from './translation.types';
+import { protectCriticalValues, restoreCriticalValues } from './critical-tokens';
 
 interface LLMResponse {
   choices?: { message?: { content?: string } }[];
@@ -40,12 +41,29 @@ export class RealTranslationProvider implements TranslationProvider {
       'Llama-3.3-70B-Instruct',
     );
 
-    const prompt = this.buildPrompt(input);
+    // Guardrails ported from translation/src/translator.ts (source of truth):
+    // numbers/dates/currency are tokenized so the LLM cannot round or drop
+    // them; the marker instruction is only issued when markers exist (an
+    // unconditional instruction makes the model hallucinate [[VB_VALUE_n]]
+    // into number-free sentences); maxTokens budgets ~10 LLM tokens per
+    // marker so counted lists are not truncated mid-output.
+    const protectedSource = protectCriticalValues(input.sourceText);
+    const sourceWordCount = protectedSource.text.trim().split(/\s+/).length;
+    const maxTokens = Math.min(
+      400,
+      Math.max(48, sourceWordCount * 3 + protectedSource.tokens.length * 10),
+    );
     const payload = {
       model,
-      messages: [{ role: 'user', content: prompt }],
-      max_tokens: 400,
-      temperature: 0.1,
+      messages: [
+        {
+          role: 'system',
+          content: this.buildSystemPrompt(input, protectedSource.tokens.length),
+        },
+        { role: 'user', content: this.buildUserPrompt(input, protectedSource.text) },
+      ],
+      max_tokens: maxTokens,
+      temperature: 0,
     };
 
     const t0 = Date.now();
@@ -58,8 +76,14 @@ export class RealTranslationProvider implements TranslationProvider {
         input.requestId,
       );
 
-      const translatedText =
-        response.data.choices?.[0]?.message?.content?.trim();
+      const rawText = response.data.choices?.[0]?.message?.content?.trim();
+      if (!rawText) {
+        throw new Error('LLM returned an empty or invalid response');
+      }
+      const translatedText = restoreCriticalValues(
+        rawText,
+        protectedSource.tokens,
+      );
       if (!translatedText) {
         throw new Error('LLM returned an empty or invalid response');
       }
@@ -70,31 +94,59 @@ export class RealTranslationProvider implements TranslationProvider {
     }
   }
 
-  private buildPrompt(input: TranslationInput): string {
+  // KEEP IN SYNC with translation/src/prompts.ts (source of truth).
+  private buildSystemPrompt(
+    input: TranslationInput,
+    protectedValueCount: number,
+  ): string {
     const langName = { vi: 'Vietnamese', en: 'English' };
-    let prompt = `You are a professional interpreter for a Vietnamese-English business meeting. Translate the following ${langName[input.sourceLanguage]} text to ${langName[input.targetLanguage]}.\nRules:\n`;
+    const keepEnglish = [
+      'API', 'WebSocket', 'SaaS', 'AI', 'MOU', 'NDA', 'KPI', 'OKR', 'ROI',
+      'EBITDA', 'B2B', 'B2C', 'CRM', 'ERP', 'PoC', 'roadmap', 'milestone',
+    ];
+    const businessGlossary = [
+      'revenue = doanh thu',
+      'profit = lợi nhuận',
+      'cash flow = dòng tiền',
+      'market share = thị phần',
+      'valuation = định giá',
+      'equity = vốn chủ sở hữu/cổ phần (choose by context)',
+      'stakeholder = bên liên quan',
+      'procurement = thu mua',
+      'supply chain = chuỗi cung ứng',
+      'compliance = tuân thủ',
+      'due diligence = thẩm định chuyên sâu',
+      'deliverable = sản phẩm bàn giao',
+    ];
+    const sessionGlossary = Object.entries(input.glossary)
+      .map(([k, v]) => `${k} = ${v}`)
+      .join('; ');
+    const markerRule =
+      protectedValueCount > 0
+        ? `\nCopy each [[VB_VALUE_n]] token exactly once in position. Preserve all numbers, dates, currencies, units, signs, and precision; never round or convert.`
+        : `\nPreserve all numbers, dates, currencies, units, signs, and precision; never round or convert.`;
+    return (
+      `Translate ${langName[input.sourceLanguage]} to ${langName[input.targetLanguage]} as a professional business interpreter.\n` +
+      `Return only the translation. Preserve meaning, tone, commitments, negation, uncertainty, names, and technical terms; do not summarize or add content.\n` +
+      `Keep unchanged: ${keepEnglish.join(', ')}.\n` +
+      `Business glossary: ${businessGlossary.join('; ')}.` +
+      (sessionGlossary ? `\nSession glossary: ${sessionGlossary}.` : '') +
+      markerRule
+    );
+  }
 
-    const glossaryEntries = Object.entries(input.glossary);
-    if (glossaryEntries.length > 0) {
-      prompt += `- Use the following glossary: ${glossaryEntries.map(([k, v]) => `${k} -> ${v}`).join(', ')}\n`;
-    } else {
-      prompt += `- Keep business/technical terms commonly used in English (API, WebSocket, deploy, ...) in English\n`;
-    }
-
-    prompt += `- Keep proper nouns, numbers, and currency amounts exactly as spoken
-- Maintain the speaker's natural tone; do not add or omit content
-- Return ONLY the translated text, no explanations\n\n`;
-
+  private buildUserPrompt(input: TranslationInput, protectedText: string): string {
+    const langName = { vi: 'Vietnamese', en: 'English' };
+    let prompt = '';
     if (input.context && input.context.length > 0) {
-      prompt += `Previous conversation context:\n`;
+      prompt += `Previous conversation context (for coherence):\n`;
       input.context.forEach((turn) => {
         prompt += `Speaker (${langName[turn.sourceLanguage]}): ${turn.sourceText}\n`;
         prompt += `Translation: ${turn.translatedText}\n`;
       });
-      prompt += `\n`;
+      prompt += `\nText to translate:\n`;
     }
-
-    prompt += `Text to translate: ${input.sourceText}`;
+    prompt += protectedText;
     return prompt;
   }
 

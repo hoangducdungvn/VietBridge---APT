@@ -450,6 +450,36 @@ def transcribe(
         )
         out["text"] = ""
         out["low_confidence"] = True
+        # A FINAL that decodes to a stock hallucination while the audio is
+        # mostly real speech is usually the decoder's fault, not the audio's —
+        # fpt vs fpt_final hallucinate on different inputs (observed: partial
+        # 'cần nâng cấp gì...' [fpt] but final 'Cảm ơn các bạn đã theo dõi'
+        # [fpt_final] on the SAME audio). Retry once with the sibling model
+        # before losing the whole utterance.
+        if is_final and speech_ratio is not None and speech_ratio >= 0.5:
+            alt_name = "fpt" if backend_name == "fpt_final" else "fpt_final"
+            try:
+                alt_result = get_engine(alt_name).transcribe(
+                    decode_audio,
+                    language_hint=language_hint,
+                    fast=False,
+                    timeout_s=timeout_s,
+                )
+                alt_text = alt_result.text
+                if alt_text and not _is_hallucination(
+                    alt_text, alt_result, speech_ratio=speech_ratio
+                ):
+                    logger.info(
+                        "utt=%s final: recovered via sibling %r: %r",
+                        utterance_id, alt_name, alt_text[:60],
+                    )
+                    out["text"] = alt_text
+                    out["backend"] = alt_name
+                    out["language"] = _resolve_language(language_hint, alt_result)
+            except EngineError as alt_e:
+                logger.warning(
+                    "utt=%s final: sibling retry failed (%s)", utterance_id, alt_e.code,
+                )
     out["asr_latency_ms"] = round((time.perf_counter() - t0) * 1000, 1)
     if "network_ms" in result.timings_ms:
         out["network_ms"] = result.timings_ms["network_ms"]
