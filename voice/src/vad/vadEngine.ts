@@ -9,7 +9,6 @@
 //     Set via VadConfig.backend after calling VadEngine.loadSilero().
 
 import { SileroVad } from './sileroVad';
-import { selectVadProbability } from './vadProbability';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -179,13 +178,12 @@ export class VadEngine {
     let probability: number;
     if (this.config.backend === 'silero' && this.silero) {
       this.enqueueSileroSamples(frame);
-      // Energy bridges model startup only. Once Silero has a result it must be
-      // authoritative, otherwise a ~0.5 silence energy score can permanently
-      // mask Silero's <0.35 end-of-utterance signal.
-      probability = selectVadProbability(
-        energyProbability,
-        this.sileroHasResult ? this.lastSileroProbability : null,
-      );
+      // Keep energy as a rescue signal. This prevents a valid microphone from
+      // becoming completely silent if a device/model combination returns
+      // unexpectedly conservative Silero probabilities.
+      probability = this.sileroHasResult
+        ? Math.max(this.lastSileroProbability, energyProbability)
+        : energyProbability;
     } else {
       probability = energyProbability;
     }
