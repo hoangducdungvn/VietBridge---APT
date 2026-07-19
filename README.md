@@ -1,63 +1,63 @@
 # VietBridge
 
-VietBridge là ứng dụng web hỗ trợ hội thoại **Việt – Anh theo thời gian thực**. Người dùng có thể tạo hoặc tham gia phòng, nói bằng ngôn ngữ của mình và theo dõi nội dung được nhận dạng, dịch sang ngôn ngữ của người còn lại.
+VietBridge is a web application for **real-time Vietnamese–English conversations**. Two participants can create or join the same room, speak in their preferred languages, and follow both the recognized speech and its translation into the other participant's language.
 
-Dự án được tổ chức theo dạng monorepo, gồm giao diện React, backend NestJS và các module xử lý giọng nói, Speech-to-Text (STT), dịch thuật.
+The project is organized as a monorepo containing a React frontend, a NestJS backend, and dedicated modules for voice processing, Speech-to-Text (STT), and translation.
 
-## Tính năng chính
+## Key Features
 
-- Tạo và tham gia phòng bằng mã phòng.
-- Giao tiếp hai chiều Việt – Anh qua microphone.
-- Phát hiện giọng nói (VAD) và tự động chia câu nói.
-- Hiển thị transcript tạm thời và hoàn chỉnh theo thời gian thực.
-- Dịch nội dung hội thoại và đồng bộ cho các thành viên qua Socket.IO.
-- Hỗ trợ provider mock để phát triển, hoặc kết nối dịch vụ STT/translation thật.
+- Create and join meetings using room codes.
+- Authenticate participants and ensure that both sides use opposite languages.
+- Support two-way Vietnamese–English conversations through the microphone.
+- Detect speech with VAD and automatically segment utterances.
+- Display partial and final transcripts in real time.
+- Translate conversations and synchronize results through Socket.IO.
+- Process both participants concurrently with participant-scoped pipelines.
+- Use mock providers during development or connect to real STT and translation services.
 
-## Kiến trúc tổng quan
+## Architecture Overview
 
-```mermaid
-flowchart TD
-    A["Microphone"] --> B["Frontend + Voice/VAD"]
-    B -->|"Socket.IO"| C["Backend<br/>Quản lý phòng và điều phối pipeline"]
-    C --> D["STT Service"]
-    D --> E["Văn bản"]
-    E --> F["Translation Service"]
-    F --> G["Bản dịch"]
-    G --> C
-    C --> H["Giao diện hội thoại thời gian thực"]
-```
+![VietBridge architecture overview](./docs/img/architecture.jpg)
 
-## Công nghệ sử dụng
+Main processing flow:
 
-- **Frontend:** React 18, TypeScript, Vite, Tailwind CSS, Zustand.
-- **Backend:** NestJS, Socket.IO, Jest.
-- **Voice:** Web Audio API, Silero VAD, ONNX Runtime Web.
-- **STT:** Python, FastAPI, FPT Cloud/Groq tùy cấu hình.
-- **Translation:** FPT LLM hoặc NLLB-200 chạy local.
+1. Two browsers run the React meeting interface and capture audio independently. Each `VoicePipeline` converts microphone audio to 16 kHz mono PCM, uses VAD to detect utterances, and splits the audio into PCM16 chunks.
+2. The Vite HTTPS Gateway (`:5173`) acts as the trusted LAN entry point. It serves the frontend and proxies REST API and Socket.IO connections to the backend.
+3. The NestJS backend (`:3000`) manages rooms, authentication, participant presence, and in-memory session data. The Realtime Gateway receives `turn.start`, `audio.chunk`, and `turn.end` events, while the Turn/Pipeline Service coordinates STT and translation independently for each participant.
+4. The FastAPI STT service (`:8001`) accepts PCM/WAV audio, preprocesses it, and returns partial or final transcripts together with latency and End Of Utterance (EOU) metadata. Final transcripts are then sent to the configured translation provider.
+5. The backend broadcasts `stt.partial`, `stt.final`, and `message.final` events to the Socket.IO room so both browsers can render the original text and translated result in real time.
 
-## Cấu trúc thư mục
+## Technology Stack
+
+- **Frontend:** React 18, TypeScript, Vite, Tailwind CSS, and Zustand.
+- **Backend:** NestJS, Socket.IO, and Jest.
+- **Voice:** Web Audio API, Silero VAD, and ONNX Runtime Web.
+- **STT:** Python, FastAPI, and Whisper models hosted on FPT Cloud.
+- **Translation:** FPT LLM or a mock provider; the repository also includes an NLLB-200 service for independent development and testing.
+
+## Project Structure
 
 ```text
 .
-├── frontend/             # Giao diện phòng họp
-├── backend/              # REST API, Socket.IO và pipeline xử lý
-├── voice/                # Thu âm, VAD và truyền audio
-├── stt/                  # Dịch vụ chuyển giọng nói thành văn bản
-├── translation/          # Logic dịch qua LLM
-├── translation-service/  # Dịch vụ dịch local bằng NLLB-200
-└── docs/                 # Tài liệu tích hợp, triển khai và kiểm thử
+├── frontend/             # Meeting interface
+├── backend/              # REST API, Socket.IO, and processing pipeline
+├── voice/                # Audio capture, VAD, and audio transport
+├── stt/                  # Speech-to-Text service
+├── translation/          # LLM-based translation logic
+├── translation-service/  # Local NLLB-200 translation service
+└── docs/                 # Integration, deployment, and testing documentation
 ```
 
-## Bắt đầu nhanh
+## Quick Start
 
-### Yêu cầu
+### Prerequisites
 
-- Node.js 20 trở lên và npm.
-- Python 3.10 trở lên nếu chạy STT hoặc translation service.
+- Node.js 20 or later and npm.
+- Python 3.10 or later when running the STT or translation service.
 
-### 1. Chạy backend
+### 1. Start the backend
 
-Sao chép `backend/.env.example` thành `backend/.env`, sau đó:
+Copy `backend/.env.example` to `backend/.env`, then run:
 
 ```bash
 cd backend
@@ -65,11 +65,11 @@ npm install
 npm run start:dev
 ```
 
-Backend mặc định chạy tại `http://localhost:3000` và sử dụng provider mock.
+The backend runs at `http://localhost:3000` by default and uses mock providers.
 
-### 2. Chạy frontend
+### 2. Start the frontend
 
-Tạo `frontend/.env.local`:
+Create `frontend/.env.local` with the following configuration:
 
 ```env
 VITE_BACKEND_API_URL=http://localhost:3000
@@ -78,7 +78,7 @@ VITE_PUBLIC_APP_URL=http://localhost:5173
 VITE_SUPPORTED_LANGUAGES=vi,en
 ```
 
-Sau đó khởi động ứng dụng:
+Then start the application:
 
 ```bash
 cd frontend
@@ -86,11 +86,13 @@ npm install
 npm run dev
 ```
 
-Mở `http://localhost:5173` trên trình duyệt. Để kiểm tra hội thoại hai người, có thể mở hai cửa sổ trình duyệt và tham gia cùng một phòng.
+Open `http://localhost:5173` in a browser. To test a two-person conversation, open two browser windows and join the same room.
 
-## Chạy với dịch vụ thật
+By default, the backend uses mock STT and translation providers. This mode is suitable for testing the interface, room creation and joining flows, and real-time connectivity without an API key.
 
-STT service chạy mặc định ở cổng `8001`:
+## Running with Real Services
+
+The STT service runs on port `8001` by default:
 
 ```bash
 cd stt
@@ -98,11 +100,13 @@ pip install -r stt_service/requirements.txt
 python -m stt_service.server
 ```
 
-Sau đó đổi `STT_PROVIDER=remote` trong `backend/.env`. Khi sử dụng FPT Cloud, đặt `FPT_API_KEY` trong file môi trường cục bộ và không commit khóa lên Git.
+Then set `STT_PROVIDER=remote` in `backend/.env`. When using FPT Cloud, store `FPT_API_KEY` in your local environment file and never commit the key to Git.
 
-Translation có thể dùng FPT LLM qua cấu hình backend hoặc chạy local service NLLB-200 ở cổng `8000`. Xem hướng dẫn chi tiết trong [Integration Guide](./docs/integration-guide.md).
+To use real translation, set `TRANSLATION_PROVIDER=remote` so the backend calls the FPT LLM. The `translation-service/` directory provides a standalone NLLB-200 service on port `8000`, but the `local` provider is not yet connected to the current backend. See `backend/.env.example` and the [Integration Guide](./docs/integration-guide.md) for the complete configuration.
 
-## Kiểm thử
+When testing with two devices on the same LAN, browsers must access the application over HTTPS to obtain microphone permission. See the [LAN Deployment Guide](./docs/deploy.md) for certificate and Vite proxy configuration.
+
+## Testing
 
 ```bash
 # Backend
@@ -116,11 +120,11 @@ npm run test
 npm run build
 ```
 
-## Tài liệu liên quan
+## Related Documentation
 
-- [Hướng dẫn tích hợp](./docs/integration-guide.md)
-- [Triển khai trong mạng LAN](./docs/deploy.md)
-- [Kiến trúc audio streaming](./docs/audio-streaming-contract.md)
-- [Tổng quan codebase](./docs/CODEBASE_OVERVIEW.md)
+- [Integration Guide](./docs/integration-guide.md)
+- [LAN Deployment Guide](./docs/deploy.md)
+- [Audio Streaming Architecture](./docs/audio-streaming-contract.md)
+- [Codebase Overview](./docs/CODEBASE_OVERVIEW.md)
 
-> **Lưu ý:** Trạng thái phòng, người tham gia và transcript hiện được lưu trong bộ nhớ. Dữ liệu sẽ mất khi backend khởi động lại hoặc phiên họp kết thúc.
+> **Note:** Rooms, participants, and transcripts are currently stored in memory. This data is cleared when the backend restarts or the meeting ends.
