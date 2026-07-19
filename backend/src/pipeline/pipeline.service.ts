@@ -1,14 +1,21 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { ApiHttpException } from '../common/errors/api-http.exception';
+import type { LanguageCode } from '../common/types/language-code.type';
+import { ParticipantsService } from '../participants/participants.service';
 import {
   STT_TRANSCRIPTION_PROVIDER,
   type SttTranscriptionProvider,
   type SttTranscriptionResult,
 } from '../providers/stt/stt-transcription-provider.interface';
+import { TRANSLATION_PROVIDER } from '../providers/translation/translation.constants';
+import type { TranslationProvider } from '../providers/translation/translation-provider.interface';
+import { SessionsService } from '../sessions/sessions.service';
 import type {
   AudioChunkInput,
   EndTurnResult,
   StartTurnResult,
+  TurnTranscriptionSnapshot,
 } from '../turns/turn.types';
 import { TurnsService } from '../turns/turns.service';
 
@@ -22,27 +29,82 @@ export interface PipelinePartialResult extends SttTranscriptionResult {
 
 type PartialHandler = (result: PipelinePartialResult) => void;
 
+export interface PipelineFinalResult extends EndTurnResult {
+  sessionId: string;
+}
+
+export interface PipelineTranslationStartedResult {
+  sessionId: string;
+  turnId: string;
+}
+
+export interface PipelineMessageFinalResult {
+  createdAt: number;
+  latency: {
+    endToEndMs: number;
+    sttFinalMs: number;
+    translationMs: number;
+  };
+  messageId: string;
+  sequence: number;
+  sessionId: string;
+  sourceLanguage: LanguageCode;
+  sourceText: string;
+  speaker: {
+    displayName: string;
+    participantId: string;
+  };
+  targetLanguage: LanguageCode;
+  translatedText: string;
+  turnId: string;
+}
+
+type FinalHandler = (result: PipelineFinalResult) => void;
+type TranslationStartedHandler = (
+  result: PipelineTranslationStartedResult,
+) => void;
+type MessageFinalHandler = (result: PipelineMessageFinalResult) => void;
+
 @Injectable()
 export class PipelineService {
-  private readonly partialInFlight = new Set<string>();
+  private readonly partialTasks = new Map<string, Promise<void>>();
   private readonly nextPartialAt = new Map<string, number>();
   private partialHandler: PartialHandler = () => undefined;
+  private finalHandler: FinalHandler = () => undefined;
+  private translationStartedHandler: TranslationStartedHandler = () =>
+    undefined;
+  private messageFinalHandler: MessageFinalHandler = () => undefined;
 
   constructor(
     @Inject(STT_TRANSCRIPTION_PROVIDER)
     private readonly sttProvider: SttTranscriptionProvider,
+    @Inject(TRANSLATION_PROVIDER)
+    private readonly translationProvider: TranslationProvider,
+    private readonly participantsService: ParticipantsService,
+    private readonly sessionsService: SessionsService,
     private readonly turnsService: TurnsService,
   ) {
     this.turnsService.registerSessionCleanupHandler((turnIds) => {
       for (const turnId of turnIds) {
         this.cleanupPartialState(turnId);
-        this.partialInFlight.delete(turnId);
       }
     });
   }
 
   setPartialHandler(handler: PartialHandler): void {
     this.partialHandler = handler;
+  }
+
+  setFinalHandler(handler: FinalHandler): void {
+    this.finalHandler = handler;
+  }
+
+  setTranslationStartedHandler(handler: TranslationStartedHandler): void {
+    this.translationStartedHandler = handler;
+  }
+
+  setMessageFinalHandler(handler: MessageFinalHandler): void {
+    this.messageFinalHandler = handler;
   }
 
   startTurn(
@@ -61,7 +123,7 @@ export class PipelineService {
 
   appendAudio(input: AudioChunkInput): void {
     this.turnsService.appendAudio(input);
-    void this.maybeTranscribePartial(input);
+    this.maybeTranscribePartial(input);
   }
 
   async endTurn(
@@ -78,7 +140,12 @@ export class PipelineService {
       return ending.result;
     }
 
+    const pendingPartial = this.partialTasks.get(turnId);
     this.cleanupPartialState(turnId);
+    if (pendingPartial !== undefined) {
+      await pendingPartial;
+    }
+    let result: EndTurnResult;
     try {
       const transcription = await this.sttProvider.transcribe({
         audio: ending.audio.audio,
@@ -86,7 +153,7 @@ export class PipelineService {
         language: ending.audio.language,
         turnId,
       });
-      return this.turnsService.completeTurn(
+      result = this.turnsService.completeTurn(
         turnId,
         transcription.text,
         transcription.backend,
@@ -96,6 +163,57 @@ export class PipelineService {
     } catch (error: unknown) {
       this.turnsService.failTurnProcessing(turnId, extractErrorCode(error));
       throw error;
+    }
+
+    this.finalHandler({ ...result, sessionId });
+    if (result.text.trim() === '') {
+      return result;
+    }
+
+    this.translationStartedHandler({ sessionId, turnId });
+    try {
+      const session = this.sessionsService.getSessionById(sessionId);
+      const participant =
+        this.participantsService.getRequiredParticipant(participantId);
+      const translation = await this.translationProvider.translate({
+        context: [],
+        glossary: session.glossary,
+        requestId: `translation_${turnId}`,
+        sessionId,
+        sourceLanguage: result.language,
+        sourceText: result.text,
+        targetLanguage: result.targetLanguage,
+        turnId,
+      });
+
+      if (this.sessionsService.getSessionById(sessionId).status === 'closed') {
+        return result;
+      }
+
+      const createdAt = Date.now();
+      this.messageFinalHandler({
+        createdAt,
+        latency: {
+          endToEndMs: createdAt - result.startedAt,
+          sttFinalMs: result.providerLatencyMs ?? 0,
+          translationMs: translation.providerLatencyMs ?? 0,
+        },
+        messageId: `message_${randomUUID()}`,
+        sequence: result.sequence,
+        sessionId,
+        sourceLanguage: result.language,
+        sourceText: result.text,
+        speaker: {
+          displayName: participant.displayName,
+          participantId,
+        },
+        targetLanguage: result.targetLanguage,
+        translatedText: translation.translatedText,
+        turnId,
+      });
+      return result;
+    } catch (error: unknown) {
+      throw toTranslationError(error);
     }
   }
 
@@ -111,9 +229,9 @@ export class PipelineService {
     this.turnsService.cancelOpenTurnsForParticipant(sessionId, participantId);
   }
 
-  private async maybeTranscribePartial(input: AudioChunkInput): Promise<void> {
+  private maybeTranscribePartial(input: AudioChunkInput): void {
     const threshold = this.nextPartialAt.get(input.turnId);
-    if (threshold === undefined || this.partialInFlight.has(input.turnId)) {
+    if (threshold === undefined || this.partialTasks.has(input.turnId)) {
       return;
     }
     const snapshot = this.turnsService.getPartialSnapshot(
@@ -125,8 +243,20 @@ export class PipelineService {
       return;
     }
 
-    this.partialInFlight.add(input.turnId);
     this.nextPartialAt.set(input.turnId, threshold + PARTIAL_INTERVAL_BYTES);
+    const task = this.transcribePartial(input.turnId, snapshot);
+    this.partialTasks.set(input.turnId, task);
+    void task.finally(() => {
+      if (this.partialTasks.get(input.turnId) === task) {
+        this.partialTasks.delete(input.turnId);
+      }
+    });
+  }
+
+  private async transcribePartial(
+    turnId: string,
+    snapshot: TurnTranscriptionSnapshot,
+  ): Promise<void> {
     try {
       const result = await this.sttProvider.transcribe({
         audio: snapshot.audio,
@@ -134,7 +264,7 @@ export class PipelineService {
         language: snapshot.language,
         turnId: snapshot.turnId,
       });
-      if (this.nextPartialAt.has(input.turnId)) {
+      if (this.nextPartialAt.has(turnId)) {
         this.partialHandler({
           ...result,
           participantId: snapshot.participantId,
@@ -144,8 +274,6 @@ export class PipelineService {
       }
     } catch {
       // A partial is best-effort. Final STT remains authoritative.
-    } finally {
-      this.partialInFlight.delete(input.turnId);
     }
   }
 
@@ -167,4 +295,23 @@ function extractErrorCode(error: unknown): string {
     }
   }
   return 'STT_PROVIDER_ERROR';
+}
+
+function toTranslationError(error: unknown): ApiHttpException {
+  if (error instanceof ApiHttpException) {
+    return error;
+  }
+  const message = error instanceof Error ? error.message.toLowerCase() : '';
+  if (message.includes('timeout') || message.includes('timed out')) {
+    return new ApiHttpException(
+      HttpStatus.GATEWAY_TIMEOUT,
+      'TRANSLATION_TIMEOUT',
+      'The translation provider timed out.',
+    );
+  }
+  return new ApiHttpException(
+    HttpStatus.BAD_GATEWAY,
+    'TRANSLATION_UNAVAILABLE',
+    'The translation provider is unavailable.',
+  );
 }

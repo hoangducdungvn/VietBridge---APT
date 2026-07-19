@@ -28,6 +28,15 @@ export FPT_API_KEY="sk-..."
 
 Sửa `BACKEND` trong [config.py](config.py) — `"fpt"`, `"groq"` hoặc `"auto"` — hoặc set env `STT_BACKEND=groq`. Không cần sửa chỗ nào khác.
 
+Runtime safety for the integrated two-device flow:
+
+```env
+STT_BACKEND=auto
+STT_MAX_CONCURRENT_REQUESTS=1
+```
+
+The gateway prioritizes final STT over queued partial work. Partial failures do not trigger an immediate fallback request; final STT keeps one fallback attempt.
+
 ## Chạy benchmark
 
 ```bash

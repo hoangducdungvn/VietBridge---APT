@@ -17,6 +17,7 @@ interface PendingChunk {
 
 export class SocketIoVoiceTransport implements VoiceTransport {
   private activeTurnId: string | undefined;
+  private activeTurnEnded = false;
   private pendingChunks: PendingChunk[] = [];
   private pendingEnd = false;
   private sequence = 0;
@@ -76,6 +77,9 @@ export class SocketIoVoiceTransport implements VoiceTransport {
   }
 
   sendUtteranceStart(_partial: UtteranceStartPartial): void {
+    if (this.activeTurnId !== undefined && !this.activeTurnEnded) {
+      this.emitTurnControl('turn.cancel', this.activeTurnId);
+    }
     this.resetTurn();
     this.socket.emit('turn.start', {
       eventId: uuidv4(),
@@ -106,6 +110,7 @@ export class SocketIoVoiceTransport implements VoiceTransport {
       this.pendingEnd = true;
       return;
     }
+    this.activeTurnEnded = true;
     this.emitTurnControl('turn.end', this.activeTurnId);
   }
 
@@ -115,10 +120,12 @@ export class SocketIoVoiceTransport implements VoiceTransport {
     const turnId = readString(value, 'turnId');
     if (turnId === undefined) return;
     this.activeTurnId = turnId;
+    this.activeTurnEnded = false;
     for (const chunk of this.pendingChunks) this.emitAudio(chunk.payload);
     this.pendingChunks = [];
     if (this.pendingEnd) {
       this.pendingEnd = false;
+      this.activeTurnEnded = true;
       this.emitTurnControl('turn.end', turnId);
     }
   };
@@ -214,6 +221,7 @@ export class SocketIoVoiceTransport implements VoiceTransport {
 
   private resetTurn(): void {
     this.activeTurnId = undefined;
+    this.activeTurnEnded = false;
     this.pendingChunks = [];
     this.pendingEnd = false;
     this.sequence = 0;

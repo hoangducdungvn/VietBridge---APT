@@ -50,23 +50,30 @@ describe('TurnsService', () => {
     expect(hostTurn.turnId).not.toBe(guestTurn.turnId);
   });
 
-  it('rejects only a duplicate capturing turn from the same participant', () => {
+  it('supersedes a stale capturing turn from the same participant', () => {
     const pair = createActivePair(sessionsService);
-    turnsService.startTurn(
+    const stale = turnsService.startTurn(
+      pair.sessionId,
+      pair.hostParticipantId,
+      AUDIO_CONFIG,
+    );
+    turnsService.appendAudio({
+      audio: Buffer.alloc(320),
+      participantId: pair.hostParticipantId,
+      sequence: 0,
+      sessionId: pair.sessionId,
+      turnId: stale.turnId,
+    });
+
+    const replacement = turnsService.startTurn(
       pair.sessionId,
       pair.hostParticipantId,
       AUDIO_CONFIG,
     );
 
-    expectApiError(
-      () =>
-        turnsService.startTurn(
-          pair.sessionId,
-          pair.hostParticipantId,
-          AUDIO_CONFIG,
-        ),
-      'PARTICIPANT_TURN_ACTIVE',
-    );
+    expect(replacement.turnId).not.toBe(stale.turnId);
+    expect(turnStore.findById(stale.turnId)?.status).toBe('cancelled');
+    expect(turnStore.getBufferedByteLength(stale.turnId)).toBe(0);
   });
 
   it('accepts a new segment while the previous segment is processing', () => {

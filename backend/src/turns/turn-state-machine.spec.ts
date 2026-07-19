@@ -1,4 +1,8 @@
-import { assertTransition, canTransition, TURN_TRANSITIONS } from './turn-state-machine';
+import {
+  assertTransition,
+  canTransition,
+  TURN_TRANSITIONS,
+} from './turn-state-machine';
 import { TurnStatus } from './turn.types';
 
 describe('turn-state-machine', () => {

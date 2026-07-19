@@ -664,6 +664,8 @@ function send(ws: WebSocket, payload: Record<string, unknown>): void {
   }
 }
 
+
+
 // ---------------------------------------------------------------------------
 // Translation — logic lives in src/translation/translator.ts; this wrapper
 // only adds gateway concerns (logging + emitting translation.final).

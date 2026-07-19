@@ -19,10 +19,12 @@ import os
 from stt_service import config
 from stt_service.eou import detect_eou
 from stt_service.engine import ASREngine, EngineError, create_engine
+from stt_service.request_gate import SttRequestGate
 
 logger = logging.getLogger("stt_service.service")
 
 _engines: dict[str, ASREngine] = {}
+_request_gate = SttRequestGate(config.STT_MAX_CONCURRENT_REQUESTS)
 
 
 def normalize_hint(language_hint: str) -> str:
@@ -365,12 +367,17 @@ def transcribe(
     timeout_s = config.TIMEOUT_FINAL_S if is_final else config.TIMEOUT_PARTIAL_S
 
     try:
-        result = get_engine(backend_name).transcribe(
-            decode_audio, language_hint=language_hint, fast=not is_final, timeout_s=timeout_s
-        )
+        with _request_gate.acquire(is_final=is_final):
+            result = get_engine(backend_name).transcribe(
+                decode_audio,
+                language_hint=language_hint,
+                fast=not is_final,
+                timeout_s=timeout_s,
+            )
     except EngineError as e:
-        # If in 'auto' mode and primary backend fails, attempt resilient automatic fallback
-        if config.BACKEND == "auto":
+        # Partial results are best-effort. Retrying them immediately doubles
+        # upstream pressure and can delay the authoritative final request.
+        if config.BACKEND == "auto" and is_final:
             fallback_name = None
             if backend_name == "fpt" and e.code in ("http_5xx", "timeout", "network", "http_4xx"):
                 # FPT fast model failed — fall back to base whisper on FPT
@@ -387,9 +394,13 @@ def transcribe(
                 backend_name = fallback_name
                 out["backend"] = backend_name
                 try:
-                    result = get_engine(backend_name).transcribe(
-                        decode_audio, language_hint=language_hint, fast=not is_final, timeout_s=timeout_s
-                    )
+                    with _request_gate.acquire(is_final=True):
+                        result = get_engine(backend_name).transcribe(
+                            decode_audio,
+                            language_hint=language_hint,
+                            fast=False,
+                            timeout_s=timeout_s,
+                        )
                 except EngineError as fallback_e:
                     out["asr_latency_ms"] = round((time.perf_counter() - t0) * 1000, 1)
                     out["error"] = fallback_e.to_dict()

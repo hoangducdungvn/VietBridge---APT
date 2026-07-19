@@ -6,6 +6,7 @@ import type { SessionCredentialsInput, SessionState } from '@domain/entities/Bac
 import { SessionApiClient, SessionApiError } from '@infrastructure/http/SessionApiClient';
 import {
   SessionSocketClient,
+  type RealtimeMessageFinal,
   type RealtimeSttResult
 } from '@infrastructure/websocket/SessionSocketClient';
 import { env } from '@infrastructure/config/env';
@@ -36,6 +37,7 @@ export default function App() {
   const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>('connecting');
   const [realtimeError, setRealtimeError] = useState<string>();
   const [sttResults, setSttResults] = useState<RealtimeSttResult[]>([]);
+  const [messages, setMessages] = useState<RealtimeMessageFinal[]>([]);
   const initialRoomCode =
     new URLSearchParams(window.location.search).get('room')?.toUpperCase() ?? '';
   const inviteLanguage = readInviteLanguage(
@@ -65,6 +67,7 @@ export default function App() {
       setServerState(state);
       if (state.status === 'closed') {
         setSttResults([]);
+        setMessages([]);
         clearSession();
         setScreen('lobby');
         return;
@@ -124,6 +127,13 @@ export default function App() {
         setRealtimeStatus('error');
       },
       onSessionState: () => void refreshSession(),
+      onMessageFinal: (message) => {
+        setMessages((current) =>
+          [...current.filter((item) => item.turnId !== message.turnId), message]
+            .sort((left, right) => left.sequence - right.sequence)
+            .slice(-30)
+        );
+      },
       onSttResult: (result) => {
         setSttResults((current) => {
           const withoutSamePartial = current.filter(
@@ -147,6 +157,7 @@ export default function App() {
     try {
       const session = await api.createSession(input, roomCode);
       setSttResults([]);
+      setMessages([]);
       setActiveSession(session);
       setScreen('waiting');
     } catch (error: unknown) {
@@ -163,6 +174,7 @@ export default function App() {
     try {
       const session = await api.joinSession(roomCode, input);
       setSttResults([]);
+      setMessages([]);
       setActiveSession(session);
       setScreen('meeting');
     } catch (error: unknown) {
@@ -175,6 +187,7 @@ export default function App() {
 
   const leaveLocally = () => {
     setSttResults([]);
+    setMessages([]);
     clearSession();
     setErrorMessage(null);
     setScreen('lobby');
@@ -183,6 +196,7 @@ export default function App() {
   const endMeeting = async () => {
     if (activeSession === null) return;
     setSttResults([]);
+    setMessages([]);
     try {
       await api.endSession(activeSession.sessionId);
     } catch (error: unknown) {
@@ -232,6 +246,7 @@ export default function App() {
           roomSocket={roomSocket}
           roomName={`Room ${activeSession.roomCode}`}
           localLanguage={localLanguage}
+          messages={messages}
           otherLanguage={otherLanguage}
           sttResults={sttResults}
           onEndMeeting={() => void endMeeting()}

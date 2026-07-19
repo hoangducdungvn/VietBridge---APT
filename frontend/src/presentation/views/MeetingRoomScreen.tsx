@@ -13,6 +13,7 @@ import type { LanguageCode } from '@shared/types';
 import type { ParticipantSession } from '@domain/entities/BackendSession';
 import { env } from '@infrastructure/config/env';
 import type {
+  RealtimeMessageFinal,
   RealtimeSttResult,
   RealtimeTranslationResult
 } from '@infrastructure/websocket/SessionSocketClient';
@@ -24,6 +25,7 @@ interface MeetingRoomScreenProps {
   roomSocket?: Socket;
   roomName: string;
   localLanguage: LanguageCode;
+  messages: RealtimeMessageFinal[];
   otherLanguage: LanguageCode;
   sttResults: RealtimeSttResult[];
   onEndMeeting: () => void;
@@ -54,19 +56,36 @@ const formatDuration = (seconds: number) =>
     .toString()
     .padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`;
 
+const formatTimestamp = (timestamp: number) =>
+  new Intl.DateTimeFormat('en', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  }).format(new Date(timestamp));
+
 interface LanguagePaneProps {
+  ariaLabel: string;
+  badgeLabel: string;
+  emptyText: string;
   language: LanguageCode;
   isOwnLanguage: boolean;
   isSpeaking: boolean;
+  liveLabel: string;
+  livePlaceholder: string;
   speakerLabel: string;
   liveCaption: string;
   transcript: TranscriptItem[];
 }
 
 function LanguagePane({
+  ariaLabel,
+  badgeLabel,
+  emptyText,
   language,
   isOwnLanguage,
   isSpeaking,
+  liveLabel,
+  livePlaceholder,
   speakerLabel,
   liveCaption,
   transcript
@@ -91,7 +110,7 @@ function LanguagePane({
       className={`relative flex h-[36rem] min-h-0 min-w-0 flex-col overflow-hidden sm:h-[40rem] lg:h-full ${
         isOwnLanguage ? 'bg-[#f3faf5] ring-2 ring-inset ring-meeting-live/55' : 'bg-white'
       }`}
-      aria-label={`${details.name} transcript`}
+      aria-label={ariaLabel}
     >
       <header
         className={`flex min-h-[76px] items-center justify-between border-b px-5 py-4 sm:px-7 ${
@@ -112,11 +131,15 @@ function LanguagePane({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <h2 className="truncate font-semibold text-meeting-ink">{speakerLabel}</h2>
-              {isOwnLanguage && (
-                <span className="rounded-md bg-meeting-live/10 px-2 py-0.5 text-xs font-semibold text-meeting-live">
-                  Your source language
-                </span>
-              )}
+              <span
+                className={`rounded-md px-2 py-0.5 text-xs font-semibold ${
+                  isOwnLanguage
+                    ? 'bg-meeting-live/10 text-meeting-live'
+                    : 'bg-meeting-accent/10 text-meeting-accent'
+                }`}
+              >
+                {badgeLabel}
+              </span>
             </div>
             <p className="mt-0.5 text-sm text-meeting-muted">
               <span aria-hidden="true">{details.flag}</span> {details.nativeName}
@@ -134,14 +157,14 @@ function LanguagePane({
       <div
         ref={scrollRef}
         tabIndex={0}
-        aria-label={`${details.name} transcript history`}
+        aria-label={`${ariaLabel} history`}
         className="transcript-scrollbar min-h-0 flex-1 scroll-smooth overflow-y-auto overscroll-contain px-5 py-6 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-meeting-accent sm:px-7"
         aria-live="polite"
       >
         {transcript.length === 0 ? (
           <div className="flex h-full min-h-48 items-center justify-center text-center">
             <p className="max-w-xs text-sm leading-6 text-meeting-muted">
-              Finalized {details.name.toLowerCase()} transcript will appear here.
+              {emptyText}
             </p>
           </div>
         ) : (
@@ -189,12 +212,12 @@ function LanguagePane({
           <span
             className={`size-2 rounded-full ${isSpeaking ? 'animate-live-dot bg-meeting-live' : 'bg-meeting-muted/40'}`}
           />
-          Live caption
+          {liveLabel}
         </div>
         <p
           className={`min-h-14 text-lg font-semibold leading-7 text-meeting-ink sm:text-xl ${liveCaption ? '' : 'text-meeting-muted'}`}
         >
-          {liveCaption || 'Waiting for speech...'}
+          {liveCaption || livePlaceholder}
           {liveCaption && (
             <span className="ml-1 inline-block h-5 w-0.5 animate-caption-cursor bg-meeting-accent align-middle" />
           )}
@@ -211,6 +234,7 @@ export function MeetingRoomScreen({
   roomSocket,
   roomName,
   localLanguage,
+  messages,
   otherLanguage,
   sttResults,
   onEndMeeting
@@ -287,7 +311,6 @@ export function MeetingRoomScreen({
     .find(
       (result) => result.type === 'partial' && result.participantId !== activeSession.participantId
     );
-  const speakingLanguage = isVadSpeaking ? localLanguage : remotePartial?.language;
 
   useEffect(() => {
     const timer = window.setInterval(() => setElapsedSeconds((seconds) => seconds + 1), 1000);
@@ -508,23 +531,40 @@ export function MeetingRoomScreen({
       </header>
 
       <div className="grid min-h-0 flex-1 grid-cols-1 overflow-visible lg:grid-cols-2 lg:overflow-hidden">
-        {orderedLanguages.map((language, index) => (
-          <div
-            key={language}
-            className={`min-h-0 lg:h-full ${
-              index === 0 ? 'border-b border-meeting-accent lg:border-b-0 lg:border-r' : ''
-            }`}
-          >
-            <LanguagePane
-              language={language}
-              isOwnLanguage={language === localLanguage}
-              isSpeaking={speakingLanguage === language}
-              speakerLabel={language === localLanguage ? 'You' : 'Other participant'}
-              liveCaption={language === 'vi' ? liveCaptions.vi : liveCaptions.en}
-              transcript={language === 'vi' ? transcripts.vi : transcripts.en}
-            />
-          </div>
-        ))}
+        <div className="min-h-0 border-b border-meeting-accent lg:h-full lg:border-b-0 lg:border-r">
+          <LanguagePane
+            ariaLabel="Other participant translated transcript"
+            badgeLabel={`Translated from ${getLanguageDetails(otherLanguage).nativeName}`}
+            emptyText="The other participant's translated speech will appear here."
+            language={localLanguage}
+            isOwnLanguage={false}
+            isSpeaking={remotePartial !== undefined}
+            liveLabel="Incoming translation"
+            livePlaceholder={
+              remotePartial === undefined
+                ? 'Waiting for the other participant...'
+                : 'Listening... translation appears when the sentence ends.'
+            }
+            speakerLabel="Other participant"
+            liveCaption=""
+            transcript={translatedRemoteTranscript}
+          />
+        </div>
+        <div className="min-h-0 lg:h-full">
+          <LanguagePane
+            ariaLabel="Your original transcript"
+            badgeLabel="Your original speech"
+            emptyText="Your finalized source transcript will appear here."
+            language={localLanguage}
+            isOwnLanguage
+            isSpeaking={isVadSpeaking}
+            liveLabel="Your live caption"
+            livePlaceholder="Waiting for your speech..."
+            speakerLabel="You"
+            liveCaption={ownPartial?.text ?? ''}
+            transcript={ownTranscript}
+          />
+        </div>
       </div>
 
       <footer className="relative flex min-h-24 items-center justify-center border-t border-meeting-line bg-white px-4 py-3 sm:px-6">

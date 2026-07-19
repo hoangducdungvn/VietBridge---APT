@@ -63,6 +63,13 @@ TRANSLATION_PROVIDER=mock
 LOG_TRANSCRIPTS=false
 ```
 
+`stt/.env` should include the upstream concurrency guard for both LAN and hosted deployment:
+
+```env
+STT_BACKEND=auto
+STT_MAX_CONCURRENT_REQUESTS=1
+```
+
 Trong `stt/.env`, giữ `FPT_API_KEY`, `GROQ_API_KEY`, `STT_HOST=127.0.0.1` và `STT_PORT=8001`. Không đổi `GROQ_API_KEY` thành `ENGLISH_STT_API_KEY` vì code hiện tại đọc đúng tên `GROQ_API_KEY`.
 
 Nếu Windows Firewall chặn, chỉ mở inbound TCP `5173`; không expose `3000` hoặc `8001` vì Vite proxy xử lý REST và Socket.IO.

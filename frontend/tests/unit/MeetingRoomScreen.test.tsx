@@ -2,7 +2,10 @@ import { render, screen, waitFor } from '@testing-library/react';
 import type { Socket } from 'socket.io-client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ParticipantSession } from '@domain/entities/BackendSession';
-import type { RealtimeSttResult } from '@infrastructure/websocket/SessionSocketClient';
+import type {
+  RealtimeMessageFinal,
+  RealtimeSttResult
+} from '@infrastructure/websocket/SessionSocketClient';
 import { MeetingRoomScreen } from '@presentation/views/MeetingRoomScreen';
 
 const voiceMocks = vi.hoisted(() => ({
@@ -55,17 +58,21 @@ describe('MeetingRoomScreen microphone startup', () => {
     expect(screen.getByText('Connected')).toBeInTheDocument();
   });
 
-  it('marks the local source-language transcript pane in green', () => {
+  it('places the local source transcript on the right and marks it in green', () => {
     renderMeeting(undefined, 'connecting');
 
-    const localPane = screen.getByRole('region', { name: 'Vietnamese transcript' });
-    const remotePane = screen.getByRole('region', { name: 'English transcript' });
+    const localPane = screen.getByRole('region', { name: 'Your original transcript' });
+    const remotePane = screen.getByRole('region', {
+      name: 'Other participant translated transcript'
+    });
     expect(localPane).toHaveAttribute('data-local-source', 'true');
     expect(localPane).toHaveClass('ring-meeting-live/55');
     expect(localPane).toHaveTextContent('You');
-    expect(localPane).toHaveTextContent('Your source language');
+    expect(localPane).toHaveTextContent('Your original speech');
     expect(remotePane).toHaveAttribute('data-local-source', 'false');
+    expect(remotePane).toHaveTextContent('Translated from English');
     expect(remotePane).not.toHaveClass('ring-meeting-live/55');
+    expect(remotePane.compareDocumentPosition(localPane)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
   it('gives each transcript an independent scrollbar and follows new final text', () => {
@@ -81,10 +88,12 @@ describe('MeetingRoomScreen microphone startup', () => {
     };
     const view = renderMeeting(undefined, 'connecting', [firstResult]);
 
-    const vietnameseHistory = screen.getByLabelText('Vietnamese transcript history');
-    const englishHistory = screen.getByLabelText('English transcript history');
-    expect(vietnameseHistory).toHaveClass('overflow-y-auto', 'transcript-scrollbar');
-    expect(englishHistory).toHaveClass('overflow-y-auto', 'transcript-scrollbar');
+    const ownHistory = screen.getByLabelText('Your original transcript history');
+    const translatedHistory = screen.getByLabelText(
+      'Other participant translated transcript history'
+    );
+    expect(ownHistory).toHaveClass('overflow-y-auto', 'transcript-scrollbar');
+    expect(translatedHistory).toHaveClass('overflow-y-auto', 'transcript-scrollbar');
     expect(scrollToMock).toHaveBeenCalledWith({ behavior: 'smooth', top: 0 });
 
     view.rerender(
@@ -93,6 +102,7 @@ describe('MeetingRoomScreen microphone startup', () => {
         realtimeStatus="connecting"
         roomName="Room APT001"
         localLanguage="vi"
+        messages={[]}
         otherLanguage="en"
         sttResults={[firstResult, { ...firstResult, text: 'Câu mới nhất', turnId: 'turn-2' }]}
         onEndMeeting={vi.fn()}
@@ -101,6 +111,41 @@ describe('MeetingRoomScreen microphone startup', () => {
 
     expect(screen.getByText('Câu mới nhất')).toBeInTheDocument();
     expect(scrollToMock).toHaveBeenCalledWith({ behavior: 'smooth', top: 0 });
+  });
+
+  it('shows only own source text on the right and the other speaker translation on the left', () => {
+    const ownResult: RealtimeSttResult = {
+      backend: 'fpt',
+      language: 'vi',
+      participantId: activeSession.participantId,
+      providerLatencyMs: 100,
+      receivedAt: Date.now(),
+      text: 'Tôi đồng ý với kế hoạch.',
+      turnId: 'turn-own',
+      type: 'final'
+    };
+    const remoteMessage: RealtimeMessageFinal = {
+      createdAt: Date.now(),
+      latency: { endToEndMs: 900, sttFinalMs: 500, translationMs: 300 },
+      messageId: 'message-remote',
+      sequence: 2,
+      sourceLanguage: 'en',
+      sourceText: 'Let us start tomorrow.',
+      speaker: { displayName: 'Alex', participantId: 'participant-guest' },
+      targetLanguage: 'vi',
+      translatedText: 'Chúng ta hãy bắt đầu vào ngày mai.',
+      turnId: 'turn-remote'
+    };
+
+    renderMeeting(undefined, 'connecting', [ownResult], [remoteMessage]);
+
+    const ownPane = screen.getByRole('region', { name: 'Your original transcript' });
+    const translatedPane = screen.getByRole('region', {
+      name: 'Other participant translated transcript'
+    });
+    expect(ownPane).toHaveTextContent('Tôi đồng ý với kế hoạch.');
+    expect(translatedPane).toHaveTextContent('Chúng ta hãy bắt đầu vào ngày mai.');
+    expect(screen.queryByText('Let us start tomorrow.')).not.toBeInTheDocument();
   });
 
   it('waits for Socket.IO instead of failing microphone startup', async () => {
@@ -115,6 +160,7 @@ describe('MeetingRoomScreen microphone startup', () => {
         roomSocket={connectedSocket}
         roomName="Room APT001"
         localLanguage="vi"
+        messages={[]}
         otherLanguage="en"
         sttResults={[]}
         onEndMeeting={vi.fn()}
@@ -136,7 +182,8 @@ describe('MeetingRoomScreen microphone startup', () => {
 function renderMeeting(
   roomSocket: Socket | undefined,
   realtimeStatus: 'connecting' | 'connected',
-  sttResults: RealtimeSttResult[] = []
+  sttResults: RealtimeSttResult[] = [],
+  messages: RealtimeMessageFinal[] = []
 ) {
   return render(
     <MeetingRoomScreen
@@ -145,6 +192,7 @@ function renderMeeting(
       roomSocket={roomSocket}
       roomName="Room APT001"
       localLanguage="vi"
+      messages={messages}
       otherLanguage="en"
       sttResults={sttResults}
       onEndMeeting={vi.fn()}

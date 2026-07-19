@@ -61,7 +61,7 @@ export class RealtimeGateway
 
   afterInit(server: Server): void {
     this.pipelineService.setPartialHandler((result) => {
-      this.server.to(roomName(result.sessionId)).emit('stt.partial', {
+      server.to(roomName(result.sessionId)).emit('stt.partial', {
         serverTimestamp: Date.now(),
         sessionId: result.sessionId,
         turnId: result.turnId,
@@ -73,6 +73,50 @@ export class RealtimeGateway
           participantId: result.participantId,
           providerLatencyMs: result.providerLatencyMs,
           text: result.text,
+        },
+      });
+    });
+    this.pipelineService.setFinalHandler((result) => {
+      server.to(roomName(result.sessionId)).emit('stt.final', {
+        serverTimestamp: Date.now(),
+        sessionId: result.sessionId,
+        turnId: result.turnId,
+        type: 'stt.final',
+        payload: {
+          backend: result.backend,
+          language: result.language,
+          lowConfidence: result.lowConfidence,
+          participantId: result.participantId,
+          providerLatencyMs: result.providerLatencyMs,
+          text: result.text,
+        },
+      });
+    });
+    this.pipelineService.setTranslationStartedHandler((result) => {
+      server.to(roomName(result.sessionId)).emit('translation.started', {
+        serverTimestamp: Date.now(),
+        sessionId: result.sessionId,
+        turnId: result.turnId,
+        type: 'translation.started',
+        payload: {},
+      });
+    });
+    this.pipelineService.setMessageFinalHandler((result) => {
+      server.to(roomName(result.sessionId)).emit('message.final', {
+        serverTimestamp: Date.now(),
+        sessionId: result.sessionId,
+        turnId: result.turnId,
+        type: 'message.final',
+        payload: {
+          createdAt: result.createdAt,
+          latency: result.latency,
+          messageId: result.messageId,
+          sequence: result.sequence,
+          sourceLanguage: result.sourceLanguage,
+          sourceText: result.sourceText,
+          speaker: result.speaker,
+          targetLanguage: result.targetLanguage,
+          translatedText: result.translatedText,
         },
       });
     });
@@ -208,28 +252,11 @@ export class RealtimeGateway
     try {
       const event = parseEventContext(eventValue, 'turn.end', true);
       const claims = this.assertEventIdentity(client, event);
-      const result = await this.pipelineService.endTurn(
+      await this.pipelineService.endTurn(
         claims.sessionId,
         claims.participantId,
         event.turnId as string,
       );
-
-      if (!result.duplicate) {
-        this.server.to(roomName(claims.sessionId)).emit('stt.final', {
-          serverTimestamp: Date.now(),
-          sessionId: claims.sessionId,
-          turnId: result.turnId,
-          type: 'stt.final',
-          payload: {
-            backend: result.backend,
-            language: result.language,
-            lowConfidence: result.lowConfidence,
-            participantId: result.participantId,
-            providerLatencyMs: result.providerLatencyMs,
-            text: result.text,
-          },
-        });
-      }
     } catch (error: unknown) {
       this.emitPipelineError(client, eventValue, error);
     }

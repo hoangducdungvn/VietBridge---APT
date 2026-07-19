@@ -17,14 +17,20 @@ import { TRANSLATION_PROVIDER } from './translation.constants';
         mockProvider: MockTranslationProvider,
         realProvider: RealTranslationProvider,
       ) => {
-        const providerType = configService.get<string>('TRANSLATION_PROVIDER') ?? 'mock';
+        if (configService.get<string>('NODE_ENV') === 'test') {
+          return mockProvider;
+        }
+        const providerType =
+          configService.get<string>('TRANSLATION_PROVIDER') ?? 'mock';
         if (providerType === 'mock') {
           return mockProvider;
         }
-        if (providerType === 'local') {
+        if (providerType === 'remote') {
           return realProvider;
         }
-        throw new NotImplementedException(`Translation provider '${providerType}' is not implemented.`);
+        throw new NotImplementedException(
+          `Translation provider '${providerType}' is not implemented.`,
+        );
       },
       inject: [ConfigService, MockTranslationProvider, RealTranslationProvider],
     },
@@ -32,5 +38,3 @@ import { TRANSLATION_PROVIDER } from './translation.constants';
   exports: [TRANSLATION_PROVIDER],
 })
 export class TranslationModule {}
-
-
