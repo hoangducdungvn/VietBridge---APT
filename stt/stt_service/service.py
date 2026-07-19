@@ -417,6 +417,45 @@ def transcribe(
             )
             return out
 
+    # The original Whisper model occasionally returns HTTP 200 with empty text
+    # for Vietnamese, even though the VI-tuned model produced valid partials.
+    # Treat that as a soft final failure and retry only the Vietnamese final on
+    # the VI model. English stays on fpt_final because the VI model corrupts it.
+    if (
+        is_final
+        and language_hint == "vi"
+        and backend_name == "fpt_final"
+        and not result.text.strip()
+    ):
+        fallback_name = "fpt"
+        logger.warning(
+            "utt=%s final [%s]: empty text, retrying Vietnamese final on %s",
+            utterance_id,
+            backend_name,
+            fallback_name,
+        )
+        backend_name = fallback_name
+        out["backend"] = backend_name
+        try:
+            with _request_gate.acquire(is_final=True):
+                result = get_engine(backend_name).transcribe(
+                    decode_audio,
+                    language_hint=language_hint,
+                    fast=False,
+                    timeout_s=timeout_s,
+                )
+        except EngineError as fallback_e:
+            out["asr_latency_ms"] = round((time.perf_counter() - t0) * 1000, 1)
+            out["error"] = fallback_e.to_dict()
+            out["low_confidence"] = True
+            logger.warning(
+                "utt=%s final [%s]: empty-result fallback failed: %s",
+                utterance_id,
+                backend_name,
+                fallback_e.code,
+            )
+            return out
+
     out["text"] = result.text
     out["language"] = _resolve_language(language_hint, result)
     out["low_confidence"] = bool(
