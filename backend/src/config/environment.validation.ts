@@ -60,7 +60,7 @@ export function validateEnvironment(
     STT_FINAL_TIMEOUT_MS: parseInteger(
       'STT_FINAL_TIMEOUT_MS',
       environment.STT_FINAL_TIMEOUT_MS,
-      8000,
+      15_000,
       1,
       120_000,
     ),

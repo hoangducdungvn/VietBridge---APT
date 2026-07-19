@@ -1,4 +1,4 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiHttpException } from '../../common/errors/api-http.exception';
 import type {
@@ -9,6 +9,8 @@ import type {
 
 @Injectable()
 export class RemoteSttTranscriptionProvider implements SttTranscriptionProvider {
+  private readonly logger = new Logger(RemoteSttTranscriptionProvider.name);
+
   constructor(private readonly configService: ConfigService) {}
 
   async transcribe(
@@ -20,7 +22,7 @@ export class RemoteSttTranscriptionProvider implements SttTranscriptionProvider 
     );
     const timeoutMs = this.configService.get<number>(
       input.isFinal ? 'STT_FINAL_TIMEOUT_MS' : 'STT_START_TIMEOUT_MS',
-      input.isFinal ? 8000 : 5000,
+      input.isFinal ? 15_000 : 5000,
     );
     const form = new FormData();
     form.append(
@@ -40,11 +42,12 @@ export class RemoteSttTranscriptionProvider implements SttTranscriptionProvider 
         method: 'POST',
         signal: AbortSignal.timeout(timeoutMs),
       });
-      const body: unknown = await response.json();
+      const body = parseJson(await response.text());
       if (!response.ok || !isSttResponse(body) || body.error !== undefined) {
         throw providerError(
           'STT_PROVIDER_ERROR',
-          readProviderError(body) ?? 'The STT provider rejected the audio.',
+          readProviderError(body) ??
+            `The STT provider returned an invalid response (HTTP ${response.status}).`,
         );
       }
       const eou = parseEou(body.eou);
@@ -63,9 +66,15 @@ export class RemoteSttTranscriptionProvider implements SttTranscriptionProvider 
       if (error instanceof ApiHttpException) {
         throw error;
       }
-      if (error instanceof Error && error.name === 'TimeoutError') {
+      if (
+        error instanceof Error &&
+        (error.name === 'TimeoutError' || error.name === 'AbortError')
+      ) {
         throw providerError('STT_TIMEOUT', 'The STT provider timed out.');
       }
+      this.logger.error(
+        `Unable to reach STT provider at ${baseUrl}: ${formatError(error)}`,
+      );
       throw providerError(
         'STT_PROVIDER_UNAVAILABLE',
         'The STT provider is unavailable.',
@@ -122,6 +131,20 @@ function readProviderError(value: unknown): string | undefined {
   return typeof value.error.message === 'string'
     ? value.error.message
     : undefined;
+}
+
+function parseJson(value: string): unknown {
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return undefined;
+  }
+}
+
+function formatError(error: unknown): string {
+  return error instanceof Error
+    ? `${error.name}: ${error.message}`
+    : 'Unknown network error';
 }
 
 function providerError(code: string, message: string): ApiHttpException {

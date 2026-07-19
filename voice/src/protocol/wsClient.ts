@@ -69,6 +69,7 @@ export interface VoiceStreamClientEvents {
   onServerAck?(ack: StreamAckEvent): void;
   onThrottle?(evt: StreamThrottleEvent): void;
   onBackpressure?(evt: ErrorEvent): void;
+  onServerError?(evt: { code: string; message: string }): void;
   onSttResult?(result: SttResultEvent): void;
   onTranslationResult?(result: TranslationResultEvent): void;
 }
@@ -384,6 +385,8 @@ export class VoiceStreamClient {
           const retryAfter = err.retry_after_ms ?? 2000;
           this.ws?.close();
           setTimeout(() => this.connect(true).catch(() => undefined), retryAfter);
+        } else {
+          this.events.onServerError?.({ code: err.code, message: err.message });
         }
         break;
       }

@@ -134,7 +134,7 @@ export class SocketIoVoiceTransport implements VoiceTransport {
     const code = readString(payload, 'code') ?? 'TURN_REJECTED';
     const message = readString(payload, 'message') ?? 'Speaking turn rejected.';
     this.resetTurn();
-    this.events.onBackpressure?.({ code, message } as never);
+    this.events.onServerError?.({ code, message });
   };
   private readonly onPipelineError = (value: unknown): void => {
     const payload = readRecord(value, 'payload');
@@ -144,7 +144,7 @@ export class SocketIoVoiceTransport implements VoiceTransport {
     if (failedTurnId === undefined || failedTurnId === this.activeTurnId) {
       this.resetTurn();
     }
-    this.events.onBackpressure?.({ code, message } as never);
+    this.events.onServerError?.({ code, message });
   };
   private readonly onSttPartial = (value: unknown): void =>
     this.emitSttResult(value, 'partial');

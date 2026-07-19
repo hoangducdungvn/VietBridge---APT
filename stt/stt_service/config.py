@@ -126,4 +126,6 @@ EOU_SPEECH_PEAK = float(os.environ.get("STT_EOU_SPEECH_PEAK", str(SILENCE_PEAK))
 
 # --- Server Gateway (P4 -> STT) ---
 STT_HOST = os.environ.get("STT_HOST", "0.0.0.0")
-STT_PORT = int(os.environ.get("STT_PORT", "8001"))
+# Hosted platforms commonly inject PORT and require that exact value. Local/LAN
+# deployments fall back to the STT-specific setting.
+STT_PORT = int(os.environ.get("PORT") or os.environ.get("STT_PORT", "8001"))

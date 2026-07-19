@@ -58,7 +58,7 @@ CORS_ORIGIN=https://192.168.10.19:5173
 STT_PROVIDER=remote
 STT_BASE_URL=http://127.0.0.1:8001
 STT_START_TIMEOUT_MS=5000
-STT_FINAL_TIMEOUT_MS=10000
+STT_FINAL_TIMEOUT_MS=15000
 TRANSLATION_PROVIDER=mock
 LOG_TRANSCRIPTS=false
 ```
@@ -71,6 +71,8 @@ STT_MAX_CONCURRENT_REQUESTS=1
 ```
 
 Trong `stt/.env`, giữ `FPT_API_KEY`, `GROQ_API_KEY`, `STT_HOST=127.0.0.1` và `STT_PORT=8001`. Không đổi `GROQ_API_KEY` thành `ENGLISH_STT_API_KEY` vì code hiện tại đọc đúng tên `GROQ_API_KEY`.
+
+Khi Backend và STT được deploy thành hai service riêng, STT phải bind `0.0.0.0` (service ưu tiên `PORT` do nền tảng cấp) và `STT_BASE_URL` của Backend phải là URL nội bộ hoặc HTTPS của service STT, không phải `localhost`/`127.0.0.1`.
 
 Nếu Windows Firewall chặn, chỉ mở inbound TCP `5173`; không expose `3000` hoặc `8001` vì Vite proxy xử lý REST và Socket.IO.
 

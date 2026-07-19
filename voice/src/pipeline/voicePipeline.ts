@@ -235,6 +235,10 @@ export class VoicePipeline {
         this.log(`Server backpressure: ${evt.message}`);
         this.events.onError?.("SERVER_BACKPRESSURE", evt.message);
       },
+      onServerError: (evt) => {
+        this.log(`Server error: ${evt.code} - ${evt.message}`);
+        this.events.onError?.(evt.code, evt.message);
+      },
       onSttResult: (res) => {
         this.events.onSttResult?.(res);
       },
