@@ -106,7 +106,7 @@ Phần EOU chính ở client tham gia trực tiếp vào việc đóng turn. Fro
 
 Silero v5 dùng contract `input/state/sr -> output/stateN` và cửa sổ 512 mẫu tại 16 kHz. Capture tạo frame 320 mẫu, vì vậy `VadEngine` ghép PCM liên tục thành cửa sổ 512 mẫu thay vì zero-pad hoặc bỏ frame. Nếu model inference lỗi liên tiếp ba lần, client tự chuyển sang energy VAD và cập nhật badge `Basic VAD`; luồng microphone/STT vẫn tiếp tục hoạt động.
 
-AudioWorklet được nối tới `AudioContext.destination` qua một gain node có volume bằng `0`. Kết nối câm này giữ Web Audio pull graph hoạt động ổn định trên Chromium nhưng không phát lại microphone. Khi Silero hoạt động, hệ thống dùng ngưỡng chuẩn v5 `0.50/0.35` và lấy xác suất energy làm tín hiệu cứu hộ để tránh trạng thái socket chỉ còn heartbeat nhưng không có speaking turn.
+AudioWorklet được nối tới `AudioContext.destination` qua một gain node có volume bằng `0`. Kết nối câm này giữ Web Audio pull graph hoạt động ổn định trên Chromium nhưng không phát lại microphone. Khi Silero hoạt động, hệ thống giữ hai cửa sổ xác suất Silero và energy độc lập thay vì lấy `max` giữa hai thang đo: speech bắt đầu/tiếp tục khi Silero vượt `0.50` hoặc energy vượt ngưỡng bắt đầu, còn trạng thái kết thúc chỉ mở khi Silero dưới `0.35` và energy không còn tín hiệu speech mạnh. Cách kết hợp này vừa cho phép energy cứu trường hợp Silero quá bảo thủ, vừa tránh energy nền khoảng `0.5` che mất tín hiệu EOU của Silero.
 
 VoicePipeline không chặn microphone để chờ tải WASM/ONNX. Energy VAD bắt đầu cùng capture ngay lập tức; Silero được tải nền và nâng cấp backend khi sẵn sàng. Vì vậy mạng chậm hoặc cold cache không còn tạo khoảng thời gian dài chỉ thấy Socket.IO `2/3` mà không có `turn.start`.
 
@@ -125,7 +125,8 @@ Thứ tự nên thực hiện:
 
 ## 8. Các file triển khai liên quan
 
-- `voice/src/vad/vadEngine.ts`: state machine và ngưỡng VAD/EOU.
+- `voice/src/vad/vadEngine.ts`: tính và làm mượt riêng xác suất Energy/Silero.
+- `voice/src/vad/vadStateMachine.ts`: fusion hai tín hiệu và state machine VAD/EOU.
 - `voice/src/pipeline/voicePipeline.ts`: tải Silero và chuyển event thành vòng đời utterance.
 - `voice/src/vad/sileroVad.ts`: ánh xạ ONNX Runtime `.mjs`/`.wasm` sang URL asset có hash do Vite phát hành.
 - `frontend/src/presentation/views/MeetingRoomScreen.tsx`: bật Silero VAD.

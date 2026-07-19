@@ -9,12 +9,17 @@
 //     Set via VadConfig.backend after calling VadEngine.loadSilero().
 
 import { SileroVad } from './sileroVad';
+import {
+  VadStateMachine,
+  type VadEvent,
+  type VadState,
+} from './vadStateMachine';
+
+export type { VadEvent, VadState } from './vadStateMachine';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-
-export type VadState = 'IDLE' | 'POSSIBLE_SPEECH' | 'SPEAKING' | 'POSSIBLE_END';
 
 export interface VadConfig {
   /** Duration of each audio frame in milliseconds. */
@@ -39,33 +44,19 @@ export interface VadConfig {
   backend: 'energy' | 'silero';
 }
 
-export interface VadEvent {
-  type: 'speech_start' | 'speech_end' | 'speech_continue';
-  speechProbability: number;
-  timestampMs: number;
-  /** How many ms of pre-roll audio are available (speech_start only). */
-  preRollMs?: number;
-  /** Why the utterance ended (speech_end only). */
-  reason?: 'vad_silence' | 'max_duration';
-  /** How long the trailing silence was in ms (speech_end only). */
-  silenceDurationMs?: number;
-  /** Total speech duration in ms (speech_end only). */
-  speechDurationMs?: number;
-}
-
 // ---------------------------------------------------------------------------
 // Defaults
 // ---------------------------------------------------------------------------
 
 const DEFAULT_CONFIG: VadConfig = {
   frameDurationMs: 20,
-  speechStartThreshold: 0.70,   // default (noisy-safe); Studio Mode passes 0.65 (quiet room assumed)
-  speechEndThreshold: 0.22,     // tolerate soft syllables and room noise dips before ending
-  minSpeechMs: 150,             // raised 120→150ms: filters mic pops and single clicks
-  preRollMs: 400,               // raised 200→400ms: keep breath intake + leading consonants ("H" in "Hello")
-  endSilenceMs: 1000,           // balance natural pauses without making final results feel late
-  maxUtteranceMs: 25_000,       // still below Whisper's 30s practical limit
-  backend: 'energy',  // R2: energy by default; loadSilero() switches to 'silero' on success
+  speechStartThreshold: 0.7, // default (noisy-safe); Studio Mode passes 0.65 (quiet room assumed)
+  speechEndThreshold: 0.22, // tolerate soft syllables and room noise dips before ending
+  minSpeechMs: 150, // raised 120→150ms: filters mic pops and single clicks
+  preRollMs: 400, // raised 200→400ms: keep breath intake + leading consonants ("H" in "Hello")
+  endSilenceMs: 1000, // balance natural pauses without making final results feel late
+  maxUtteranceMs: 25_000, // still below Whisper's 30s practical limit
+  backend: 'energy', // R2: energy by default; loadSilero() switches to 'silero' on success
 };
 
 const SILERO_START_THRESHOLD = 0.5;
@@ -85,8 +76,8 @@ function sigmoid(x: number): number {
 // ---------------------------------------------------------------------------
 
 export class VadEngine {
-  private state: VadState = 'IDLE';
   private config: VadConfig;
+  private stateMachine: VadStateMachine;
 
   // Pre-roll circular buffer ---
   private preRollBuffer: Float32Array[];
@@ -94,21 +85,17 @@ export class VadEngine {
   private preRollWriteIdx: number = 0;
   private preRollCount: number = 0;
 
-  // Timing bookkeeping ---
-  private speechStartTime: number = 0;
-  private silenceStartTime: number = 0;
   private frameCount: number = 0;
 
-  // Probability sliding window (≥120 ms, i.e. ≥6 frames @ 20 ms) ---
-  private probabilityWindow: number[];
+  // Keep each detector on its own probability scale. Mixing the raw values
+  // caused Energy's ~0.5 silence baseline to mask Silero's EOU threshold.
+  private energyProbabilityWindow: number[];
+  private sileroProbabilityWindow: number[];
   private windowCapacity: number;
 
   // Noise floor tracking ---
   private noiseFloorEstimate: number = 1e-10; // running EMA of energy during non-speech
   private noiseFloorInitialised: boolean = false;
-
-  // Accumulator for POSSIBLE_SPEECH duration ---
-  private possibleSpeechAccMs: number = 0;
 
   // Scale factor: tuned so ~10 dB above noise floor → probability ~0.7
   // 10 dB ≈ ln(10) ≈ 2.302 in log-energy space.  sigmoid(2.302 * scale) ≈ 0.7
@@ -135,6 +122,17 @@ export class VadEngine {
 
   constructor(config?: Partial<VadConfig>) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+    this.stateMachine = new VadStateMachine({
+      frameDurationMs: this.config.frameDurationMs,
+      minSpeechMs: this.config.minSpeechMs,
+      preRollMs: this.config.preRollMs,
+      endSilenceMs: this.config.endSilenceMs,
+      maxUtteranceMs: this.config.maxUtteranceMs,
+      energyStartThreshold: this.config.speechStartThreshold,
+      energyEndThreshold: this.config.speechEndThreshold,
+      sileroStartThreshold: SILERO_START_THRESHOLD,
+      sileroEndThreshold: SILERO_END_THRESHOLD,
+    });
 
     // Pre-roll: number of frames to keep
     this.preRollCapacity = Math.max(
@@ -148,7 +146,8 @@ export class VadEngine {
       1,
       Math.ceil(this.config.minSpeechMs / this.config.frameDurationMs),
     );
-    this.probabilityWindow = [];
+    this.energyProbabilityWindow = [];
+    this.sileroProbabilityWindow = [];
   }
 
   // -----------------------------------------------------------------------
@@ -175,25 +174,31 @@ export class VadEngine {
     //    while Silero v5 requires continuous 512-sample windows. Queue every
     //    sample and run model calls sequentially so frames are never dropped.
     const energyProbability = this.computeSpeechProbability(energy, zcr);
-    let probability: number;
+    let sileroProbability: number | null = null;
     if (this.config.backend === 'silero' && this.silero) {
       this.enqueueSileroSamples(frame);
-      // Keep energy as a rescue signal. This prevents a valid microphone from
-      // becoming completely silent if a device/model combination returns
-      // unexpectedly conservative Silero probabilities.
-      probability = this.sileroHasResult
-        ? Math.max(this.lastSileroProbability, energyProbability)
-        : energyProbability;
-    } else {
-      probability = energyProbability;
+      if (this.sileroHasResult) {
+        sileroProbability = this.lastSileroProbability;
+      }
     }
 
-    // 4. Push into sliding probability window
-    this.pushProbability(probability);
-    const windowAvg = this.windowAverage();
+    // 4. Smooth Energy and Silero independently. The state machine combines
+    // detector decisions, never their raw probability values.
+    this.pushProbability(this.energyProbabilityWindow, energyProbability);
+    if (sileroProbability === null) {
+      this.sileroProbabilityWindow = [];
+    } else {
+      this.pushProbability(this.sileroProbabilityWindow, sileroProbability);
+    }
+    const energyAverage = this.windowAverage(this.energyProbabilityWindow);
+    const sileroAverage =
+      sileroProbability === null
+        ? null
+        : this.windowAverage(this.sileroProbabilityWindow);
 
     // 5. Update noise floor during non-speech states
-    if (this.state === 'IDLE' || this.state === 'POSSIBLE_END') {
+    const state = this.stateMachine.getState();
+    if (state === 'IDLE' || state === 'POSSIBLE_END') {
       this.updateNoiseFloor(energy);
     }
 
@@ -202,12 +207,26 @@ export class VadEngine {
     this.pushPreRoll(frame);
 
     // 7. Run state machine
-    return this.transition(windowAvg, probability, timestampMs);
+    const event = this.stateMachine.process(
+      {
+        energyAverage,
+        energyInstant: energyProbability,
+        sileroAverage,
+        sileroInstant: sileroProbability,
+      },
+      timestampMs,
+      this.preRollCount * this.config.frameDurationMs,
+    );
+    if (event?.type === 'speech_end') {
+      this.energyProbabilityWindow = [];
+      this.sileroProbabilityWindow = [];
+    }
+    return event;
   }
 
   /** Return the current VAD state. */
   getState(): VadState {
-    return this.state;
+    return this.stateMachine.getState();
   }
 
   /**
@@ -226,7 +245,10 @@ export class VadEngine {
       this.config.backend = 'silero';
       return true;
     } catch (err) {
-      console.warn('[VadEngine] Silero load failed, falling back to energy VAD:', err);
+      console.warn(
+        '[VadEngine] Silero load failed, falling back to energy VAD:',
+        err,
+      );
       this.silero = null;
       this.config.backend = 'energy';
       return false;
@@ -247,9 +269,7 @@ export class VadEngine {
 
     const frames: Float32Array[] = [];
     const start =
-      this.preRollCount < this.preRollCapacity
-        ? 0
-        : this.preRollWriteIdx;
+      this.preRollCount < this.preRollCapacity ? 0 : this.preRollWriteIdx;
 
     for (let i = 0; i < this.preRollCount; i++) {
       const idx = (start + i) % this.preRollCapacity;
@@ -260,15 +280,13 @@ export class VadEngine {
 
   /** Reset the engine to IDLE and clear all buffers. */
   reset(): void {
-    this.state = 'IDLE';
+    this.stateMachine.reset();
     this.preRollBuffer = [];
     this.preRollWriteIdx = 0;
     this.preRollCount = 0;
-    this.speechStartTime = 0;
-    this.silenceStartTime = 0;
     this.frameCount = 0;
-    this.probabilityWindow = [];
-    this.possibleSpeechAccMs = 0;
+    this.energyProbabilityWindow = [];
+    this.sileroProbabilityWindow = [];
     // Keep noise floor estimate across resets for continuity
     // R2: Reset Silero hidden states too
     this.silero?.reset();
@@ -280,7 +298,9 @@ export class VadEngine {
   }
 
   private enqueueSileroSamples(frame: Float32Array): void {
-    const combined = new Float32Array(this.sileroSampleBuffer.length + frame.length);
+    const combined = new Float32Array(
+      this.sileroSampleBuffer.length + frame.length,
+    );
     combined.set(this.sileroSampleBuffer);
     combined.set(frame, this.sileroSampleBuffer.length);
     this.sileroSampleBuffer = combined;
@@ -298,7 +318,9 @@ export class VadEngine {
     }
 
     const window = this.sileroSampleBuffer.slice(0, this.SILERO_WINDOW_SAMPLES);
-    this.sileroSampleBuffer = this.sileroSampleBuffer.slice(this.SILERO_WINDOW_SAMPLES);
+    this.sileroSampleBuffer = this.sileroSampleBuffer.slice(
+      this.SILERO_WINDOW_SAMPLES,
+    );
     this.sileroInferring = true;
 
     void this.silero
@@ -315,12 +337,15 @@ export class VadEngine {
           error,
         );
         if (this.sileroFailureCount >= this.SILERO_FAILURE_LIMIT) {
-          console.warn('[VadEngine] Falling back to energy VAD after repeated inference failures');
+          console.warn(
+            '[VadEngine] Falling back to energy VAD after repeated inference failures',
+          );
           this.config.backend = 'energy';
           this.silero = null;
           this.sileroSampleBuffer = new Float32Array(0);
           this.sileroHasResult = false;
           this.lastSileroProbability = 0;
+          this.sileroProbabilityWindow = [];
         }
       })
       .finally(() => {
@@ -351,7 +376,7 @@ export class VadEngine {
     if (frame.length < 2) return 0;
     let crossings = 0;
     for (let i = 1; i < frame.length; i++) {
-      if ((frame[i] >= 0) !== (frame[i - 1] >= 0)) {
+      if (frame[i] >= 0 !== frame[i - 1] >= 0) {
         crossings++;
       }
     }
@@ -403,18 +428,18 @@ export class VadEngine {
   // Probability window
   // -----------------------------------------------------------------------
 
-  private pushProbability(p: number): void {
-    this.probabilityWindow.push(p);
-    if (this.probabilityWindow.length > this.windowCapacity) {
-      this.probabilityWindow.shift();
+  private pushProbability(window: number[], probability: number): void {
+    window.push(probability);
+    if (window.length > this.windowCapacity) {
+      window.shift();
     }
   }
 
-  private windowAverage(): number {
-    if (this.probabilityWindow.length === 0) return 0;
+  private windowAverage(window: number[]): number {
+    if (window.length === 0) return 0;
     let sum = 0;
-    for (const v of this.probabilityWindow) sum += v;
-    return sum / this.probabilityWindow.length;
+    for (const value of window) sum += value;
+    return sum / window.length;
   }
 
   // -----------------------------------------------------------------------
@@ -429,140 +454,6 @@ export class VadEngine {
       this.preRollBuffer[this.preRollWriteIdx] = frame;
       this.preRollCount = Math.min(this.preRollCount + 1, this.preRollCapacity);
     }
-    this.preRollWriteIdx =
-      (this.preRollWriteIdx + 1) % this.preRollCapacity;
-  }
-
-  // -----------------------------------------------------------------------
-  // State machine
-  // -----------------------------------------------------------------------
-
-  private transition(
-    windowAvg: number,
-    instantProb: number,
-    timestampMs: number,
-  ): VadEvent | null {
-    const speechStartThreshold =
-      this.config.backend === 'silero'
-        ? SILERO_START_THRESHOLD
-        : this.config.speechStartThreshold;
-    const speechEndThreshold =
-      this.config.backend === 'silero'
-        ? SILERO_END_THRESHOLD
-        : this.config.speechEndThreshold;
-
-    switch (this.state) {
-      // -----------------------------------------------------------------
-      case 'IDLE': {
-        if (windowAvg > speechStartThreshold) {
-          this.state = 'POSSIBLE_SPEECH';
-          this.possibleSpeechAccMs = this.config.frameDurationMs;
-          this.speechStartTime = timestampMs;
-        }
-        return null;
-      }
-
-      // -----------------------------------------------------------------
-      case 'POSSIBLE_SPEECH': {
-        if (windowAvg > speechStartThreshold) {
-          this.possibleSpeechAccMs += this.config.frameDurationMs;
-
-          if (this.possibleSpeechAccMs >= this.config.minSpeechMs) {
-            // Confirmed speech
-            this.state = 'SPEAKING';
-            const preRollAvailableMs =
-              this.preRollCount * this.config.frameDurationMs;
-            return {
-              type: 'speech_start',
-              speechProbability: instantProb,
-              timestampMs,
-              preRollMs: Math.min(preRollAvailableMs, this.config.preRollMs),
-            };
-          }
-        } else {
-          // Dropped below threshold — false alarm
-          this.state = 'IDLE';
-          this.possibleSpeechAccMs = 0;
-        }
-        return null;
-      }
-
-      // -----------------------------------------------------------------
-      case 'SPEAKING': {
-        const elapsed = timestampMs - this.speechStartTime;
-
-        // Max utterance guard
-        if (elapsed >= this.config.maxUtteranceMs) {
-          this.state = 'IDLE';
-          this.possibleSpeechAccMs = 0;
-          this.probabilityWindow = [];
-          return {
-            type: 'speech_end',
-            speechProbability: instantProb,
-            timestampMs,
-            reason: 'max_duration',
-            speechDurationMs: elapsed,
-            silenceDurationMs: 0,
-          };
-        }
-
-        if (windowAvg < speechEndThreshold) {
-          this.state = 'POSSIBLE_END';
-          this.silenceStartTime = timestampMs;
-        }
-        return null;
-      }
-
-      // -----------------------------------------------------------------
-      case 'POSSIBLE_END': {
-        const silenceDuration = timestampMs - this.silenceStartTime;
-        const speechDuration = timestampMs - this.speechStartTime;
-
-        // Max utterance guard even during possible end
-        if (speechDuration >= this.config.maxUtteranceMs) {
-          this.state = 'IDLE';
-          this.possibleSpeechAccMs = 0;
-          this.probabilityWindow = [];
-          return {
-            type: 'speech_end',
-            speechProbability: instantProb,
-            timestampMs,
-            reason: 'max_duration',
-            speechDurationMs: speechDuration,
-            silenceDurationMs: silenceDuration,
-          };
-        }
-
-        if (windowAvg > speechStartThreshold) {
-          // Speech resumed
-          this.state = 'SPEAKING';
-          return {
-            type: 'speech_continue',
-            speechProbability: instantProb,
-            timestampMs,
-          };
-        }
-
-        if (silenceDuration >= this.config.endSilenceMs) {
-          // Confirmed silence → end utterance
-          this.state = 'IDLE';
-          this.possibleSpeechAccMs = 0;
-          this.probabilityWindow = [];
-          return {
-            type: 'speech_end',
-            speechProbability: instantProb,
-            timestampMs,
-            reason: 'vad_silence',
-            silenceDurationMs: silenceDuration,
-            speechDurationMs: speechDuration,
-          };
-        }
-
-        return null;
-      }
-
-      default:
-        return null;
-    }
+    this.preRollWriteIdx = (this.preRollWriteIdx + 1) % this.preRollCapacity;
   }
 }

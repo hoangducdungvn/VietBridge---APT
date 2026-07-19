@@ -17,7 +17,7 @@ MVP bilingual translation vertical slice — Voice, STT, Translation, and speake
 - Added stale participant-turn recovery: Voice cancels an unended local turn before starting another, and Backend atomically supersedes any orphaned `started`/`streaming` segment instead of trapping the participant in repeated `PARTICIPANT_TURN_ACTIVE` errors.
 - Fixed deployed Silero VAD initialization by letting Vite fingerprint and publish the matching ONNX Runtime `.mjs`/`.wasm` assets, exposed `AI VAD`/fallback state in the meeting UI, retained 1.5 seconds of natural pause, and flushed tail PCM before `turn.end`.
 - Corrected the Silero v5 inference contract to use `input/state/sr` and `output/stateN`, converted continuous 320-sample capture frames into lossless 512-sample model windows, and added automatic runtime fallback to energy VAD after repeated inference failures.
-- Kept the browser AudioWorklet alive through a muted Web Audio sink, aligned Silero v5 thresholds to `0.50/0.35`, and combined the energy probability as a rescue signal so an active microphone cannot silently stop producing speaking turns.
+- Kept the browser AudioWorklet alive through a muted Web Audio sink, aligned Silero v5 thresholds to `0.50/0.35`, and fused Silero/Energy as separate decisions: either detector may start or resume speech, while Silero EOU requires no strong Energy speech evidence.
 - Made Silero loading asynchronous so the microphone and Energy VAD start immediately instead of showing only Socket.IO heartbeat while production downloads and initializes the large WASM/ONNX assets.
 - Moved STT EOU analysis before trailing-silence trimming and preserved typed EOU metadata through the Backend provider, turn result, and room-wide STT events for production diagnostics.
 - Added an STT upstream request gate with final-request priority and configurable `STT_MAX_CONCURRENT_REQUESTS` (default `1`), disabled fallback amplification for best-effort partials, and retained one fallback attempt for finals.
@@ -56,7 +56,7 @@ MVP bilingual translation vertical slice — Voice, STT, Translation, and speake
 - `src/realtime/realtime.gateway.ts` and the wired `RealtimeModule`.
 - `src/pipeline/pipeline.service.ts` and the wired `PipelineModule`.
 - `stt/stt_service/request_gate.py` plus concurrency-gate tests and `stt/.env.example` deployment configuration.
-- `voice/src/vad/sileroVad.ts` ONNX Runtime asset URL wiring and `src/common/types/stt-eou.type.ts` EOU contract mapping.
+- `voice/src/vad/sileroVad.ts` ONNX Runtime asset URL wiring, `voice/src/vad/vadStateMachine.ts` hybrid VAD lifecycle, and `src/common/types/stt-eou.type.ts` EOU contract mapping.
 - `src/providers/translation/translation.module.ts`, mock/remote Translation providers, and Translation orchestration tests.
 - `src/providers/stt/stt-transcription-provider.interface.ts`, mock provider, remote FastAPI provider, and the wired `SttModule`.
 - `src/turns/turn.types.ts`, `turn.store.ts`, `turns.service.ts`, `turns.service.spec.ts`, and the wired `TurnsModule`.
@@ -72,7 +72,7 @@ MVP bilingual translation vertical slice — Voice, STT, Translation, and speake
 - Tests: PASS — `npm run test -- --runInBand` passed 12 suites and 57 tests, including EOU provider mapping and the partial/final race regression test; Python STT tests passed 7 tests including request serialization and final EOU metrics.
 - Build: PASS — `npm run build` completed with 0 TypeScript errors.
 - Frontend: PASS — lint, 21 tests, and production build completed, including the right-side local source transcript, left-side remote translation, Socket.IO readiness, scrolling, and end-meeting cleanup.
-- Voice: PASS — TypeScript typecheck and production build completed; real ONNX inference contract checks passed for both Voice and deployed Frontend Silero models.
+- Voice: PASS — hybrid Energy/Silero lifecycle regression, TypeScript typecheck, and production build completed; real ONNX inference contract checks passed for both Voice and deployed Frontend Silero models.
 - STT: PASS — Python unit tests and `compileall` completed; upstream calls are serialized with final priority by default.
 - Live Socket.IO smoke: PASS — host and guest connected to one backend session, both were online, and both transports upgraded to WebSocket.
 - LAN HTTPS gateway: PASS — trusted certificate hostname validation, `/health`, REST create/end, and Socket.IO WebSocket upgrade passed through the configured LAN HTTPS origin; the current Wi-Fi URL is `https://192.168.10.19:5173`.

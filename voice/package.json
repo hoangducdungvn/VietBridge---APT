@@ -12,6 +12,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test:silero": "node scripts/verify-silero-contract.mjs",
+    "test:vad": "tsx scripts/verify-vad-state-machine.ts",
     "typecheck": "tsc --noEmit",
     "mock-server": "tsx watch src/mock-server/server.ts"
   },
