@@ -203,6 +203,15 @@ async def transcribe_ws_turns(websocket: WebSocket):
     turn_active = False
     cadence_s = 1.0
 
+    async def send_safe(payload: dict) -> bool:
+        """send_json that tolerates the client vanishing mid-turn (Stop button,
+        tab close): a final/partial racing the disconnect must not traceback."""
+        try:
+            await websocket.send_json(payload)
+            return True
+        except Exception:
+            return False
+
     async def periodic_partial() -> None:
         # Noisy mics can hold a turn open for many seconds while the ASR keeps
         # returning "" (noise, or wrong-language hint). Back the cadence off on
@@ -221,7 +230,7 @@ async def transcribe_ws_turns(websocket: WebSocket):
                             )
                             if res:
                                 empty_streak = 0 if res.get("text", "").strip() else empty_streak + 1
-                                await websocket.send_json({
+                                await send_safe({
                                     "type": "stt.partial",
                                     "turnId": turn_id,
                                     "text": res.get("text", ""),
@@ -280,7 +289,7 @@ async def transcribe_ws_turns(websocket: WebSocket):
                                 service.transcribe, turn_id, audio, language_hint, True, None
                             )
                             if res:
-                                await websocket.send_json({
+                                await send_safe({
                                     "type": "stt.final",
                                     "turnId": turn_id,
                                     "text": res.get("text", ""),
@@ -292,7 +301,7 @@ async def transcribe_ws_turns(websocket: WebSocket):
                                 })
                         except Exception as e:
                             logger.error("Error in final transcribe: %s", e)
-                            await websocket.send_json({"type": "stt.error", "turnId": turn_id, "error": str(e)})
+                            await send_safe({"type": "stt.error", "turnId": turn_id, "error": str(e)})
                         logger.info("Finished turn %s", turn_id)
 
                 except json.JSONDecodeError as e:

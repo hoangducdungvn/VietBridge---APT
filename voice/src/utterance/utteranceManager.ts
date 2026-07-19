@@ -77,6 +77,9 @@ export interface UtteranceManagerConfig {
   speakerId: string | null;
   speakerState: SpeakerState;
   languageHint: LanguageHint;
+  /** Reports the ACTIVE VAD backend at utterance start (Silero can finish
+   *  loading after construction). Defaults to 'energy-vad' when absent. */
+  vadEngineName?: () => string;
 }
 
 // ---------------------------------------------------------------------------
@@ -126,7 +129,7 @@ export class UtteranceManager {
     };
 
     const vadInfo: VadInfo = {
-      engine: 'energy-vad',
+      engine: this.config.vadEngineName?.() ?? 'energy-vad',
       speech_probability: event.speechProbability,
       pre_roll_ms: event.preRollMs ?? 0,
     };

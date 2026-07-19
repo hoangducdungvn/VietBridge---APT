@@ -118,6 +118,14 @@ export class VadEngine {
   private noiseFloorEstimate: number = 1e-10; // running EMA of energy during non-speech
   private noiseFloorInitialised: boolean = false;
 
+  // Anti-deadlock floor recovery (see processFrame step 5) ---
+  /** Ring buffer of the last ~2s of frame energies (all states). */
+  private recentEnergies: number[] = [];
+  private recentEnergiesIdx = 0;
+  private readonly RECENT_ENERGY_FRAMES = 100; // 2s @ 20ms
+  /** Non-zero while a stale floor is being ramped back up mid-speech. */
+  private floorRecoveryTarget = 0;
+
   // Accumulator for POSSIBLE_SPEECH duration ---
   private possibleSpeechAccMs: number = 0;
 
@@ -200,9 +208,33 @@ export class VadEngine {
     this.pushProbability(probability);
     const windowAvg = this.windowAverage();
 
-    // 5. Update noise floor during non-speech states
+    // 5. Update noise floor during non-speech states.
+    //
+    //    Anti-deadlock: the EMA floor is frozen while SPEAKING, and entering
+    //    POSSIBLE_END requires a frame ~1.2dB BELOW the floor — so if the
+    //    ambient level rises after the floor was learned (browser AGC ramping,
+    //    fan, speaker bleed), no frame can ever dip under the stale floor and
+    //    the turn only ends at maxUtteranceMs (observed: every utterance in a
+    //    noisy session ending with reason=max_duration). When the quietest
+    //    frame of the last ~2s sits >8dB above the floor, latch a recovery
+    //    target near the ambient mean and ramp the floor up ~+4dB/s until
+    //    normal end-of-turn detection works again.
+    this.recentEnergies[this.recentEnergiesIdx] = energy;
+    this.recentEnergiesIdx = (this.recentEnergiesIdx + 1) % this.RECENT_ENERGY_FRAMES;
     if (this.state === 'IDLE' || this.state === 'POSSIBLE_END') {
+      this.floorRecoveryTarget = 0; // EMA is live again — no recovery needed
       this.updateNoiseFloor(energy);
+    } else if (this.recentEnergies.length >= this.RECENT_ENERGY_FRAMES) {
+      const recentMin = Math.min(...this.recentEnergies);
+      if (recentMin > this.noiseFloorEstimate * 6) {
+        this.floorRecoveryTarget = recentMin * 2.5;
+      }
+      if (this.floorRecoveryTarget > this.noiseFloorEstimate) {
+        this.noiseFloorEstimate = Math.min(
+          this.floorRecoveryTarget,
+          this.noiseFloorEstimate * 1.02,
+        );
+      }
     }
 
     // 6. Maintain pre-roll buffer (always, even during speech for
@@ -277,6 +309,9 @@ export class VadEngine {
     this.frameCount = 0;
     this.probabilityWindow = [];
     this.possibleSpeechAccMs = 0;
+    this.recentEnergies = [];
+    this.recentEnergiesIdx = 0;
+    this.floorRecoveryTarget = 0;
     // Keep noise floor estimate across resets for continuity
     // R2: Reset Silero hidden states too
     this.silero?.reset();

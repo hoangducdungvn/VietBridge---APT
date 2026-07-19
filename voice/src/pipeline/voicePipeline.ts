@@ -201,6 +201,7 @@ export class VoicePipeline {
           ? "assigned"
           : "unknown") as SpeakerState,
         languageHint: this.config.languageHint,
+        vadEngineName: () => `${this.vad.getBackend()}-vad`,
       },
       uttCallbacks,
     );
