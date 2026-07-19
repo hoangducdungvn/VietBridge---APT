@@ -57,6 +57,8 @@ export interface VoicePipelineConfig {
   chunkGroupSize?: number;
   /** Disable ONNX loading when the host app only ships energy VAD assets. */
   enableSileroVad?: boolean;
+  /** Silence required before closing an utterance. Defaults to 1000ms. */
+  endSilenceMs?: number;
   /** Override raw WebSocket transport with the host application's transport. */
   transportFactory?: VoiceTransportFactory;
   /** Studio mode: raw capture (browser AEC/NS/AGC off) + more sensitive VAD.
@@ -71,6 +73,7 @@ export interface VoicePipelineConfig {
 export interface VoicePipelineEvents {
   onConnectionStateChange?(state: ConnectionState): void;
   onVadStateChange?(state: VadState): void;
+  onVadBackendChange?(backend: 'energy' | 'silero'): void;
   onDeviceStateChange?(state: DeviceState): void;
   onAudioLevel?(quality: AudioQuality): void;
   onUtteranceStart?(utteranceId: string): void;
@@ -109,6 +112,7 @@ export class VoicePipeline {
   private totalAudioDurationMs = 0;
 
   constructor(config: VoicePipelineConfig, events: VoicePipelineEvents = {}) {
+    const studioMode = config.studioMode ?? false;
     this.config = {
       gatewayUrl: config.gatewayUrl,
       sessionId: config.sessionId ?? `ses-${uuidv4()}`,
@@ -118,9 +122,10 @@ export class VoicePipeline {
       languageHint: config.languageHint ?? "vi",
       deviceId: config.deviceId ?? "",
       enableSileroVad: config.enableSileroVad ?? true,
+      endSilenceMs: config.endSilenceMs ?? (studioMode ? 1500 : 1000),
       chunkGroupSize: config.chunkGroupSize ?? 2, // 2 × 20ms = 40ms per chunk
       transportFactory: config.transportFactory,
-      studioMode: config.studioMode ?? false,
+      studioMode,
     };
 
     this.events = events;
@@ -129,11 +134,10 @@ export class VoicePipeline {
     // It also assumes longer monologue speaking styles, so we increase endSilenceMs
     // to 1500ms so pauses for breath don't cut the sentence.
     // Default mode gets 1000ms (default VadEngine config)
-    this.vad = new VadEngine(
-      this.config.studioMode
-        ? { speechStartThreshold: 0.65, endSilenceMs: 1500 }
-        : undefined
-    );
+    this.vad = new VadEngine({
+      ...(this.config.studioMode ? { speechStartThreshold: 0.65 } : {}),
+      endSilenceMs: this.config.endSilenceMs,
+    });
   }
 
   // -------------------------------------------------------------------------
@@ -162,6 +166,7 @@ export class VoicePipeline {
       }
     }
     this.events.onLog?.(`VAD backend: ${this.vad.getBackend()}`);
+    this.events.onVadBackendChange?.(this.vad.getBackend());
 
     // 1. Init utterance manager
     const uttCallbacks: UtteranceCallbacks = {
@@ -374,8 +379,8 @@ export class VoicePipeline {
     // Emit VAD state
     this.events.onVadStateChange?.(vadState);
 
-    // Handle VAD events
-    if (vadEvent) {
+    // Start first so pre-roll/current frames have an active utterance target.
+    if (vadEvent?.type === "speech_start") {
       this.handleVadEvent(vadEvent);
     }
 
@@ -387,8 +392,17 @@ export class VoicePipeline {
     }
 
     // Flush when we have enough frames grouped
-    if (this.chunkBuffer.length >= this.config.chunkGroupSize) {
+    // Flush every pending frame before speech_end. Previously turn.end was
+    // emitted first, dropping up to one grouped chunk from the end of a word.
+    if (
+      this.chunkBuffer.length >= this.config.chunkGroupSize ||
+      vadEvent?.type === "speech_end"
+    ) {
       this.flushChunkBuffer(timestampMs);
+    }
+
+    if (vadEvent && vadEvent.type !== "speech_start") {
+      this.handleVadEvent(vadEvent);
     }
   }
 

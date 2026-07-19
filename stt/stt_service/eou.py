@@ -51,12 +51,16 @@ def detect_eou(audio: np.ndarray, is_final: bool = False) -> EOUResult:
     audio = np.asarray(audio, dtype=np.float32).reshape(-1)
     duration_ms = int(round(audio.size / config.SAMPLE_RATE * 1000))
 
-    if is_final:
-        return EOUResult(True, "client_final", duration_ms, 0, duration_ms)
-    if not config.EOU_ENABLED:
+    if not config.EOU_ENABLED and not is_final:
         return EOUResult(False, "disabled", 0, 0, duration_ms)
     if audio.size == 0:
-        return EOUResult(False, "empty", 0, duration_ms, duration_ms)
+        return EOUResult(
+            is_final,
+            "client_final" if is_final else "empty",
+            0,
+            duration_ms,
+            duration_ms,
+        )
 
     frame_size = max(1, int(config.SAMPLE_RATE * config.EOU_FRAME_MS / 1000))
     speech_frames: list[bool] = []
@@ -66,7 +70,13 @@ def detect_eou(audio: np.ndarray, is_final: bool = False) -> EOUResult:
     speech_count = sum(1 for is_speech in speech_frames if is_speech)
     speech_ms = speech_count * config.EOU_FRAME_MS
     if speech_ms < config.EOU_MIN_SPEECH_MS:
-        return EOUResult(False, "insufficient_speech", speech_ms, duration_ms, duration_ms)
+        return EOUResult(
+            is_final,
+            "client_final" if is_final else "insufficient_speech",
+            speech_ms,
+            duration_ms,
+            duration_ms,
+        )
 
     trailing_silence_frames = 0
     for is_speech in reversed(speech_frames):
@@ -75,6 +85,8 @@ def detect_eou(audio: np.ndarray, is_final: bool = False) -> EOUResult:
         trailing_silence_frames += 1
     trailing_silence_ms = trailing_silence_frames * config.EOU_FRAME_MS
 
+    if is_final:
+        return EOUResult(True, "client_final", speech_ms, trailing_silence_ms, duration_ms)
     if duration_ms >= config.EOU_MAX_UTTERANCE_MS:
         return EOUResult(True, "max_duration", speech_ms, trailing_silence_ms, duration_ms)
     if trailing_silence_ms >= config.EOU_END_SILENCE_MS:

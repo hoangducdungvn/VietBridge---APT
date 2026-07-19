@@ -229,6 +229,9 @@ export function MeetingRoomScreen({
   const [isVadSpeaking, setIsVadSpeaking] = useState(false);
   const [isEnding, setIsEnding] = useState(false);
   const [isMicStarting, setIsMicStarting] = useState(false);
+  const [vadBackend, setVadBackend] = useState<'idle' | 'loading' | 'silero' | 'energy'>(
+    'idle'
+  );
   const [voiceError, setVoiceError] = useState<string>();
   const pipelineRef = useRef<VoicePipeline>();
   const startRequestRef = useRef(0);
@@ -293,6 +296,7 @@ export function MeetingRoomScreen({
     setIsMicStarting(false);
     setIsMicActive(false);
     setIsVadSpeaking(false);
+    setVadBackend('idle');
     await pipeline?.stop();
   }, []);
 
@@ -308,9 +312,11 @@ export function MeetingRoomScreen({
     startRequestRef.current = requestId;
     setVoiceError(undefined);
     setIsMicStarting(true);
+    setVadBackend('loading');
     const pipeline = new VoicePipeline(
       {
         enableSileroVad: true,
+        endSilenceMs: 1500,
         gatewayUrl: env.backendWsUrl,
         languageHint: activeSession.sourceLanguage,
         participantId: activeSession.participantId,
@@ -324,6 +330,7 @@ export function MeetingRoomScreen({
             setVoiceError(`${code}: ${message}`);
           }
         },
+        onVadBackendChange: setVadBackend,
         onVadStateChange: (state) =>
           setIsVadSpeaking(state === 'SPEAKING' || state === 'POSSIBLE_END')
       }
@@ -500,6 +507,24 @@ export function MeetingRoomScreen({
             {isMicActive && (
               <span className="absolute inset-[-7px] animate-mic-ring rounded-full border-2 border-meeting-accent/30" />
             )}
+            <span
+              aria-hidden="true"
+              className={`pointer-events-none absolute -top-5 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] font-semibold uppercase tracking-wide ${
+                vadBackend === 'silero'
+                  ? 'text-meeting-live'
+                  : vadBackend === 'energy'
+                    ? 'text-meeting-warning'
+                    : 'text-meeting-muted'
+              }`}
+            >
+              {vadBackend === 'silero'
+                ? 'AI VAD'
+                : vadBackend === 'energy'
+                  ? 'Basic VAD'
+                  : vadBackend === 'loading'
+                    ? 'Loading VAD'
+                    : 'Mic off'}
+            </span>
             {isMicActive || isMicStarting ? (
               <Microphone aria-hidden="true" size={27} weight="fill" />
             ) : (

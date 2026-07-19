@@ -47,8 +47,10 @@ export class RemoteSttTranscriptionProvider implements SttTranscriptionProvider 
           readProviderError(body) ?? 'The STT provider rejected the audio.',
         );
       }
+      const eou = parseEou(body.eou);
       return {
         backend: body.backend,
+        ...(eou === undefined ? {} : { eou }),
         language:
           body.language === 'vi' || body.language === 'en'
             ? body.language
@@ -75,10 +77,31 @@ export class RemoteSttTranscriptionProvider implements SttTranscriptionProvider 
 interface SttHttpResponse {
   asr_latency_ms: number;
   backend: string;
+  eou?: unknown;
   error?: unknown;
   language: string;
   low_confidence: boolean;
   text: string;
+}
+
+function parseEou(value: unknown): SttTranscriptionResult['eou'] {
+  if (
+    !isRecord(value) ||
+    typeof value.is_endpoint !== 'boolean' ||
+    typeof value.reason !== 'string' ||
+    typeof value.speech_ms !== 'number' ||
+    typeof value.trailing_silence_ms !== 'number' ||
+    typeof value.duration_ms !== 'number'
+  ) {
+    return undefined;
+  }
+  return {
+    durationMs: value.duration_ms,
+    isEndpoint: value.is_endpoint,
+    reason: value.reason,
+    speechMs: value.speech_ms,
+    trailingSilenceMs: value.trailing_silence_ms,
+  };
 }
 
 function isSttResponse(value: unknown): value is SttHttpResponse {

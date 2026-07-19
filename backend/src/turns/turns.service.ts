@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { ApiHttpException } from '../common/errors/api-http.exception';
+import type { SttEouMetadata } from '../common/types/stt-eou.type';
 import { StructuredLogger } from '../observability/structured-logger.service';
 import { ParticipantsService } from '../participants/participants.service';
 import { SessionStore } from '../sessions/session.store';
@@ -223,6 +224,7 @@ export class TurnsService {
     backend?: string,
     providerLatencyMs?: number,
     lowConfidence?: boolean,
+    eou?: SttEouMetadata,
   ): EndTurnResult {
     const turn = this.getRequiredTurn(turnId);
     if (turn.status === 'completed' || turn.status !== 'processing') {
@@ -233,6 +235,7 @@ export class TurnsService {
     turn.sttBackend = backend;
     turn.providerLatencyMs = providerLatencyMs;
     turn.lowConfidence = lowConfidence;
+    turn.eou = eou;
     turn.completedAt = Date.now();
     turn.status = 'completed';
     this.clearAudio(turn);
@@ -335,6 +338,7 @@ export class TurnsService {
     return {
       ...(turn.sttBackend === undefined ? {} : { backend: turn.sttBackend }),
       duplicate,
+      ...(turn.eou === undefined ? {} : { eou: turn.eou }),
       language: turn.sourceLanguage,
       ...(turn.lowConfidence === undefined
         ? {}

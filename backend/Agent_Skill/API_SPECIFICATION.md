@@ -410,6 +410,13 @@ With `STT_PROVIDER=remote`, `turn.end` sends all accumulated raw PCM to `${STT_B
     "lowConfidence": false,
     "participantId": "participant_...",
     "providerLatencyMs": 918.4,
+    "eou": {
+      "isEndpoint": true,
+      "reason": "client_final",
+      "speechMs": 1520,
+      "trailingSilenceMs": 1480,
+      "durationMs": 3000
+    },
     "text": "Xin chào"
   }
 }
@@ -417,6 +424,7 @@ With `STT_PROVIDER=remote`, `turn.end` sends all accumulated raw PCM to `${STT_B
 
 - Both events are broadcast to all connected participants in the session room.
 - Partial requests re-decode the accumulated turn audio and allow at most one request in flight per turn.
+- When supplied by STT, `eou` is preserved as camelCase observability metadata. Browser VAD remains responsible for emitting `turn.end`; Backend does not use this field to close a live turn.
 - A final supersedes pending partial output. Provider failure emits `pipeline.error` with `STT_TIMEOUT`, `STT_PROVIDER_UNAVAILABLE`, or `STT_PROVIDER_ERROR` and cleans only the failed segment.
 - The backend never logs or persists raw audio or provider API keys.
 
@@ -488,3 +496,4 @@ Use the frontend or the automated Socket.IO e2e suite for realtime events; Postm
 | Meeting cleanup | End-session now purges all in-memory turn audio/transcript/partial state; the frontend clears visible transcript state immediately. |
 | Independent microphones | Removed the session-wide speaker lock and `TURN_BUSY`; both participants may stream and finish STT segments concurrently. |
 | MVP Translation | Added remote FPT LLM translation, `translation.started`, idempotent bilingual `message.final`, language-safe routing, latency metadata, and frontend speaker-relative rendering. |
+| EOU/VAD hardening | Packaged the Silero ONNX runtime for Frontend deployment, retained 1.5 seconds of natural pause, flushed tail audio before `turn.end`, and preserved STT EOU metadata. |

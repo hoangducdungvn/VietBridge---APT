@@ -12,6 +12,8 @@
 //   const prob = await vad.infer(pcm16kHzFloat32);  // 0..1
 
 import * as ort from 'onnxruntime-web';
+import ortWasmModuleUrl from 'onnxruntime-web/ort-wasm-simd-threaded.jsep.mjs?url';
+import ortWasmBinaryUrl from 'onnxruntime-web/ort-wasm-simd-threaded.jsep.wasm?url';
 
 // ---------------------------------------------------------------------------
 // Constants — must match the ONNX model's expected input shape
@@ -51,7 +53,10 @@ export class SileroVad {
    */
   static async create(modelUrl: string): Promise<SileroVad> {
     // Use WASM backend — runs on any browser with WebAssembly support (99%+).
-    ort.env.wasm.wasmPaths = '/ort-wasm/';
+    ort.env.wasm.wasmPaths = {
+      mjs: new URL(ortWasmModuleUrl, window.location.href).href,
+      wasm: new URL(ortWasmBinaryUrl, window.location.href).href,
+    };
     const session = await ort.InferenceSession.create(modelUrl, {
       executionProviders: ['wasm'],
       graphOptimizationLevel: 'all',

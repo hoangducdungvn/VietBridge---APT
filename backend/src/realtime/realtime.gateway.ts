@@ -68,6 +68,7 @@ export class RealtimeGateway
         type: 'stt.partial',
         payload: {
           backend: result.backend,
+          ...(result.eou === undefined ? {} : { eou: result.eou }),
           language: result.language,
           lowConfidence: result.lowConfidence,
           participantId: result.participantId,
@@ -84,6 +85,7 @@ export class RealtimeGateway
         type: 'stt.final',
         payload: {
           backend: result.backend,
+          ...(result.eou === undefined ? {} : { eou: result.eou }),
           language: result.language,
           lowConfidence: result.lowConfidence,
           participantId: result.participantId,

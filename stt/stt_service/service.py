@@ -343,8 +343,8 @@ def transcribe(
 
     # Trim dead-air from the end to prevent Whisper hallucinations on trailing
     # noise (runs on normalized audio — same scale as the gate thresholds).
-    decode_audio = _trim_trailing_silence(decode_audio)
     out["eou"] = detect_eou(decode_audio, is_final=is_final).to_dict()
+    decode_audio = _trim_trailing_silence(decode_audio)
 
     if _is_silence(decode_audio):
         # Hallucination guard: whisper invents text on silence — skip the API.

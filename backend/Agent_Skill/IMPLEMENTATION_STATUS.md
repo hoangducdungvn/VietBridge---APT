@@ -15,6 +15,8 @@ MVP bilingual translation vertical slice — Voice, STT, Translation, and speake
 - Added best-effort accumulated-audio partial STT at 2-second intervals and authoritative final STT, with only one partial request in flight.
 - Serialized each turn's partial/final boundary so `turn.end` waits for an in-flight partial before sending authoritative final STT, preventing overlapping requests for the same audio segment.
 - Added stale participant-turn recovery: Voice cancels an unended local turn before starting another, and Backend atomically supersedes any orphaned `started`/`streaming` segment instead of trapping the participant in repeated `PARTICIPANT_TURN_ACTIVE` errors.
+- Fixed deployed Silero VAD initialization by letting Vite fingerprint and publish the matching ONNX Runtime `.mjs`/`.wasm` assets, exposed `AI VAD`/fallback state in the meeting UI, retained 1.5 seconds of natural pause, and flushed tail PCM before `turn.end`.
+- Moved STT EOU analysis before trailing-silence trimming and preserved typed EOU metadata through the Backend provider, turn result, and room-wide STT events for production diagnostics.
 - Added an STT upstream request gate with final-request priority and configurable `STT_MAX_CONCURRENT_REQUESTS` (default `1`), disabled fallback amplification for best-effort partials, and retained one fallback attempt for finals.
 - Made FPT/Groq HTTP sessions thread-local and taught the standalone Voice mock gateway to surface structured STT errors returned inside HTTP 200 responses.
 - Added provider timeout/unavailable/error mapping, provider latency metadata, cleanup on provider failure, and room-wide `stt.partial`/`stt.final` broadcasts.
@@ -51,6 +53,7 @@ MVP bilingual translation vertical slice — Voice, STT, Translation, and speake
 - `src/realtime/realtime.gateway.ts` and the wired `RealtimeModule`.
 - `src/pipeline/pipeline.service.ts` and the wired `PipelineModule`.
 - `stt/stt_service/request_gate.py` plus concurrency-gate tests and `stt/.env.example` deployment configuration.
+- `voice/src/vad/sileroVad.ts` ONNX Runtime asset URL wiring and `src/common/types/stt-eou.type.ts` EOU contract mapping.
 - `src/providers/translation/translation.module.ts`, mock/remote Translation providers, and Translation orchestration tests.
 - `src/providers/stt/stt-transcription-provider.interface.ts`, mock provider, remote FastAPI provider, and the wired `SttModule`.
 - `src/turns/turn.types.ts`, `turn.store.ts`, `turns.service.ts`, `turns.service.spec.ts`, and the wired `TurnsModule`.
@@ -63,7 +66,7 @@ MVP bilingual translation vertical slice — Voice, STT, Translation, and speake
 ## Validation results
 
 - Lint: PASS — `npm run lint` completed with 0 errors.
-- Tests: PASS — `npm run test -- --runInBand` passed 11 suites and 56 tests, including the partial/final race regression test; Python STT tests passed 6 tests including request serialization.
+- Tests: PASS — `npm run test -- --runInBand` passed 12 suites and 57 tests, including EOU provider mapping and the partial/final race regression test; Python STT tests passed 7 tests including request serialization and final EOU metrics.
 - Build: PASS — `npm run build` completed with 0 TypeScript errors.
 - Frontend: PASS — lint, 21 tests, and production build completed, including the right-side local source transcript, left-side remote translation, Socket.IO readiness, scrolling, and end-meeting cleanup.
 - Voice: PASS — TypeScript typecheck and production build completed with participant-isolated final/error handling.
@@ -75,7 +78,7 @@ MVP bilingual translation vertical slice — Voice, STT, Translation, and speake
 ## Not implemented yet
 
 - Recent-turn conversation context, dynamic glossary management, persistent/replayable message history, and a dedicated observability latency service.
-- VAD tuning: each device currently closes its own utterance after 600 ms of silence, so hesitant speech can still be split into multiple transcript segments; this no longer blocks the other participant.
+- Adaptive, language-specific VAD thresholds are not implemented; meeting clients currently use a shared 1.5-second end-silence threshold and a 25-second maximum utterance.
 - Persistent storage, Redis, Kafka, WebRTC, video, TTS, summaries, and microservices.
 
 ## Recommended next phase

@@ -1,4 +1,5 @@
 import type { LanguageCode } from '../../common/types/language-code.type';
+import type { SttEouMetadata } from '../../common/types/stt-eou.type';
 
 export const STT_TRANSCRIPTION_PROVIDER = Symbol('STT_TRANSCRIPTION_PROVIDER');
 
@@ -11,6 +12,7 @@ export interface SttTranscriptionInput {
 
 export interface SttTranscriptionResult {
   backend: string;
+  eou?: SttEouMetadata;
   language: LanguageCode;
   lowConfidence: boolean;
   providerLatencyMs: number;

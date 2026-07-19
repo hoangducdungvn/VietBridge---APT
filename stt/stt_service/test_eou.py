@@ -38,6 +38,14 @@ class EOUDetectionTest(unittest.TestCase):
         self.assertTrue(result.is_endpoint)
         self.assertEqual(result.reason, "client_final")
 
+    def test_final_reports_real_speech_and_trailing_silence(self) -> None:
+        result = detect_eou(
+            np.concatenate([tone(500), silence(400)]), is_final=True
+        )
+
+        self.assertEqual(result.speech_ms, 500)
+        self.assertEqual(result.trailing_silence_ms, 400)
+
     def test_max_duration_endpoint(self) -> None:
         result = detect_eou(tone(config.EOU_MAX_UTTERANCE_MS + 20))
 

@@ -159,6 +159,7 @@ export class PipelineService {
         transcription.backend,
         transcription.providerLatencyMs,
         transcription.lowConfidence,
+        transcription.eou,
       );
     } catch (error: unknown) {
       this.turnsService.failTurnProcessing(turnId, extractErrorCode(error));

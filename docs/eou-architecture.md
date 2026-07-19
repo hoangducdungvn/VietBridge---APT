@@ -36,7 +36,7 @@ Microphone
        speechEndThreshold   = 0.22
        minSpeechMs          = 150 ms
        preRollMs            = 400 ms
-       endSilenceMs         = 1000 ms
+       endSilenceMs         = 1500 ms (meeting client)
        maxUtteranceMs       = 25000 ms
   -> speech_end: vad_silence | max_duration
   -> turn.end
@@ -65,7 +65,7 @@ Microphone
 |---|---:|---:|---|
 | `enableSileroVad` | `false` | `true` | Dùng xác suất speech từ Silero thay cho chỉ năng lượng khi model tải thành công. |
 | `speechEndThreshold` | `0.28` | `0.22` | Ít coi âm tiết nhỏ hoặc đoạn hụt năng lượng là im lặng hơn. |
-| `endSilenceMs` | `600` | `1000` | Giữ các khoảng nghỉ 600–999 ms trong cùng một câu. Đổi lại final xuất hiện muộn thêm tối đa khoảng 400 ms. |
+| `endSilenceMs` | `600` | `1500` trong meeting | Giữ các khoảng nghỉ tự nhiên dưới 1,5 giây trong cùng một câu. Đổi lại final xuất hiện muộn hơn sau khi người dùng dừng nói. |
 | `maxUtteranceMs` | `20000` | `25000` | Giảm việc cắt câu dài, vẫn giữ biên 5 giây trước giới hạn thực tế 30 giây của Whisper. |
 | `preRollMs` | `400` | `400` | Giữ phụ âm đầu và hơi lấy vào trước lúc xác nhận speech. |
 | `minSpeechMs` | `150` | `150` | Bỏ tiếng click/pop ngắn nhưng vẫn nhận câu nói ngắn. |
@@ -76,7 +76,7 @@ STT có thêm các biến môi trường:
 |---|---:|---|
 | `STT_EOU_ENABLED` | `true` | Bật metadata EOU phía STT. |
 | `STT_EOU_FRAME_MS` | `20` | Kích thước frame phân tích. |
-| `STT_EOU_END_SILENCE_MS` | `600` | Ngưỡng fallback phía STT. |
+| `STT_EOU_END_SILENCE_MS` | `1500` | Ngưỡng quan sát đồng bộ với meeting client. |
 | `STT_EOU_MIN_SPEECH_MS` | `160` | Speech tối thiểu để một đoạn đủ điều kiện endpoint. |
 | `STT_EOU_MAX_UTTERANCE_MS` | `25000` | Chốt endpoint khi đạt thời lượng tối đa. |
 | `STT_EOU_SPEECH_RMS` | theo `SILENCE_RMS` | Ngưỡng năng lượng trung bình. |
@@ -102,29 +102,26 @@ Các lý do có thể là `client_final`, `disabled`, `empty`, `insufficient_spe
 
 ## 6. Trạng thái tích hợp hiện tại
 
-Phần EOU chính ở client đã tham gia trực tiếp vào việc đóng turn. Phần EOU trong STT hiện mới là tín hiệu quan sát/dự phòng, chưa phải nguồn quyết định, vì:
+Phần EOU chính ở client tham gia trực tiếp vào việc đóng turn. Frontend deploy đóng gói đủ ONNX Runtime để Silero thực sự khởi tạo, hiển thị `AI VAD` hoặc `Basic VAD`, và meeting dùng `endSilenceMs = 1500 ms` để giữ khoảng ngập ngừng tự nhiên.
 
-1. `remote-stt-transcription.provider.ts` chưa ánh xạ trường `eou` từ phản hồi STT.
-2. Pipeline backend chỉ final khi client gửi `turn.end`; backend chưa dùng `eou.is_endpoint` để giữ hoặc đóng turn.
-3. STT đang gọi `detect_eou()` sau `_trim_trailing_silence()`. Bước trim có thể xóa chính phần im lặng mà EOU cần đo.
-4. Ngưỡng client là 1000 ms nhưng fallback STT vẫn mặc định 600 ms, nên hai tầng chưa đồng nhất.
+STT tính EOU trên audio đã normalize nhưng chưa trim, sau đó Backend ánh xạ metadata sang camelCase và giữ nó trong `stt.partial`/`stt.final`. Metadata này phục vụ quan sát ranh giới câu; Pipeline vẫn chỉ final khi client gửi `turn.end`, chưa dùng `eou.isEndpoint` để tự đóng turn.
 
-Do đó, phát biểu chính xác là: hệ thống đã tích hợp client EOU để cải thiện ranh giới turn và thêm STT EOU metadata để mở đường cho fallback; chưa phải EOU hai tầng hoàn chỉnh.
+Do đó, phát biểu chính xác là: hệ thống có client EOU hoàn chỉnh cho luồng realtime và có STT EOU metadata xuyên Backend để chẩn đoán; STT EOU vẫn là tín hiệu advisory, không phải nguồn điều khiển turn thứ hai.
 
 ## 7. Điều chỉnh tiếp theo đề xuất
 
 Thứ tự nên thực hiện:
 
-1. Đổi `STT_EOU_END_SILENCE_MS` mặc định từ 600 thành 1000 ms để đồng bộ với client.
-2. Tính EOU trên audio trước khi `_trim_trailing_silence()`, còn audio đã trim chỉ dùng để decode STT.
-3. Mở rộng contract của STT provider/backend để giữ nguyên trường `eou` và ghi log theo `utterance_id`.
-4. Chưa cho backend tự đóng turn bằng metadata STT trong luồng hiện tại, vì STT chỉ nhận request sau khi client đã partial/final. Muốn server EOU thực sự điều khiển turn cần stream hoặc gửi các cửa sổ audio tích lũy lên server.
-5. Chạy test mic thật với cùng kịch bản trước/sau, đo số `turn.end`, số `stt.final`, thời gian từ âm cuối tới final và độ đầy đủ của câu.
+1. Chạy test mic thật với cùng kịch bản trước/sau, đo số `turn.end`, số `stt.final`, thời gian từ âm cuối tới final và độ đầy đủ của câu.
+2. Theo dõi badge VAD; bản deploy chính thức phải hiển thị `AI VAD`, không phải `Basic VAD`.
+3. Chưa cho backend tự đóng turn bằng metadata STT trong luồng hiện tại, vì STT chỉ nhận request sau khi client đã partial/final. Muốn server EOU thực sự điều khiển turn cần stream hoặc gửi các cửa sổ audio tích lũy lên server.
+4. Nếu người dùng vẫn thường xuyên nghỉ lâu hơn 1.5 giây, cân nhắc cấu hình ngưỡng theo UX thay vì tăng cứng cho mọi thiết bị.
 
 ## 8. Các file triển khai liên quan
 
 - `voice/src/vad/vadEngine.ts`: state machine và ngưỡng VAD/EOU.
 - `voice/src/pipeline/voicePipeline.ts`: tải Silero và chuyển event thành vòng đời utterance.
+- `voice/src/vad/sileroVad.ts`: ánh xạ ONNX Runtime `.mjs`/`.wasm` sang URL asset có hash do Vite phát hành.
 - `frontend/src/presentation/views/MeetingRoomScreen.tsx`: bật Silero VAD.
 - `frontend/public/models/silero_vad.onnx`: model VAD được phục vụ cho trình duyệt.
 - `stt/stt_service/eou.py`: thuật toán EOU fallback phía STT.
