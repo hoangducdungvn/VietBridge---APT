@@ -104,6 +104,8 @@ Các lý do có thể là `client_final`, `disabled`, `empty`, `insufficient_spe
 
 Phần EOU chính ở client tham gia trực tiếp vào việc đóng turn. Frontend deploy đóng gói đủ ONNX Runtime để Silero thực sự khởi tạo, hiển thị `AI VAD` hoặc `Basic VAD`, và meeting dùng `endSilenceMs = 1500 ms` để giữ khoảng ngập ngừng tự nhiên.
 
+Silero v5 dùng contract `input/state/sr -> output/stateN` và cửa sổ 512 mẫu tại 16 kHz. Capture tạo frame 320 mẫu, vì vậy `VadEngine` ghép PCM liên tục thành cửa sổ 512 mẫu thay vì zero-pad hoặc bỏ frame. Nếu model inference lỗi liên tiếp ba lần, client tự chuyển sang energy VAD và cập nhật badge `Basic VAD`; luồng microphone/STT vẫn tiếp tục hoạt động.
+
 STT tính EOU trên audio đã normalize nhưng chưa trim, sau đó Backend ánh xạ metadata sang camelCase và giữ nó trong `stt.partial`/`stt.final`. Metadata này phục vụ quan sát ranh giới câu; Pipeline vẫn chỉ final khi client gửi `turn.end`, chưa dùng `eou.isEndpoint` để tự đóng turn.
 
 Do đó, phát biểu chính xác là: hệ thống có client EOU hoàn chỉnh cho luồng realtime và có STT EOU metadata xuyên Backend để chẩn đoán; STT EOU vẫn là tín hiệu advisory, không phải nguồn điều khiển turn thứ hai.

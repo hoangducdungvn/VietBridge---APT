@@ -110,6 +110,7 @@ export class VoicePipeline {
   private totalChunksSent = 0;
   private totalUtterances = 0;
   private totalAudioDurationMs = 0;
+  private reportedVadBackend: 'energy' | 'silero' | undefined;
 
   constructor(config: VoicePipelineConfig, events: VoicePipelineEvents = {}) {
     const studioMode = config.studioMode ?? false;
@@ -165,8 +166,7 @@ export class VoicePipeline {
         this.log("Silero unavailable - using energy VAD fallback");
       }
     }
-    this.events.onLog?.(`VAD backend: ${this.vad.getBackend()}`);
-    this.events.onVadBackendChange?.(this.vad.getBackend());
+    this.reportVadBackend();
 
     // 1. Init utterance manager
     const uttCallbacks: UtteranceCallbacks = {
@@ -374,6 +374,7 @@ export class VoicePipeline {
 
     // Run VAD on the 16kHz frame
     const vadEvent = this.vad.processFrame(float32ForVad, timestampMs);
+    this.reportVadBackend();
     const vadState = this.vad.getState();
 
     // Emit VAD state
@@ -569,6 +570,17 @@ export class VoicePipeline {
       estimated_snr_db: snr / samples.length,
       clipping_ratio: clip,
     };
+  }
+
+  private reportVadBackend(): void {
+    const backend = this.vad.getBackend();
+    if (backend === this.reportedVadBackend) {
+      return;
+    }
+
+    this.reportedVadBackend = backend;
+    this.events.onLog?.(`VAD backend: ${backend}`);
+    this.events.onVadBackendChange?.(backend);
   }
 
   private log(message: string): void {

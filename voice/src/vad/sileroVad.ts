@@ -23,7 +23,7 @@ import ortWasmBinaryUrl from 'onnxruntime-web/ort-wasm-simd-threaded.jsep.wasm?u
 const MODEL_SAMPLE_RATE = 16000;
 /** Context window: 512 samples @ 16 kHz = 32ms per inference call. */
 const WINDOW_SIZE_SAMPLES = 512;
-/** Hidden state size for the LSTM inside Silero. */
+/** Recurrent state size for the LSTM inside Silero. */
 const HIDDEN_SIZE = 128;
 
 // ---------------------------------------------------------------------------
@@ -32,17 +32,14 @@ const HIDDEN_SIZE = 128;
 
 export class SileroVad {
   private session: ort.InferenceSession;
-  /** LSTM hidden state (h) — carried across infer() calls for continuity. */
-  private h: ort.Tensor;
-  /** LSTM cell state (c) — carried across infer() calls. */
-  private c: ort.Tensor;
+  /** Silero v5 recurrent state, carried across inference windows. */
+  private state: ort.Tensor;
   /** Sample rate tensor (constant). */
   private sr: ort.Tensor;
 
   private constructor(session: ort.InferenceSession) {
     this.session = session;
-    this.h = new ort.Tensor('float32', new Float32Array(2 * 1 * HIDDEN_SIZE), [2, 1, HIDDEN_SIZE]);
-    this.c = new ort.Tensor('float32', new Float32Array(2 * 1 * HIDDEN_SIZE), [2, 1, HIDDEN_SIZE]);
+    this.state = this.createState();
     this.sr = new ort.Tensor('int64', BigInt64Array.from([BigInt(MODEL_SAMPLE_RATE)]), [1]);
   }
 
@@ -61,41 +58,57 @@ export class SileroVad {
       executionProviders: ['wasm'],
       graphOptimizationLevel: 'all',
     });
+
+    const requiredInputs = ['input', 'state', 'sr'];
+    const requiredOutputs = ['output', 'stateN'];
+    if (
+      requiredInputs.some((name) => !session.inputNames.includes(name)) ||
+      requiredOutputs.some((name) => !session.outputNames.includes(name))
+    ) {
+      throw new Error(
+        `Unsupported Silero model contract: inputs=${session.inputNames.join(',')}; outputs=${session.outputNames.join(',')}`,
+      );
+    }
+
     return new SileroVad(session);
   }
 
   /**
    * Run inference on a chunk of 16 kHz Float32 audio.
    *
-   * The chunk is sliced / zero-padded internally to exactly WINDOW_SIZE_SAMPLES.
-   * LSTM states are updated in-place so successive calls maintain temporal
+   * The caller supplies exactly one 512-sample window. Recurrent state is
+   * updated in-place so successive calls maintain temporal
    * context across chunk boundaries.
    *
-   * @param frame  Float32Array of 16 kHz mono PCM (any length; ~512 samples ideal)
+   * @param frame  512 samples of 16 kHz mono Float32 PCM
    * @returns      Speech probability in [0, 1]
    */
   async infer(frame: Float32Array): Promise<number> {
-    // Prepare exactly WINDOW_SIZE_SAMPLES worth of input.
-    const input = new Float32Array(WINDOW_SIZE_SAMPLES);
-    input.set(frame.subarray(0, Math.min(frame.length, WINDOW_SIZE_SAMPLES)));
+    if (frame.length !== WINDOW_SIZE_SAMPLES) {
+      throw new Error(
+        `Silero v5 requires ${WINDOW_SIZE_SAMPLES} samples, received ${frame.length}`,
+      );
+    }
 
-    const inputTensor = new ort.Tensor('float32', input, [1, WINDOW_SIZE_SAMPLES]);
+    const inputTensor = new ort.Tensor('float32', frame, [1, WINDOW_SIZE_SAMPLES]);
 
     const feeds: Record<string, ort.Tensor> = {
       input: inputTensor,
+      state: this.state,
       sr: this.sr,
-      h: this.h,
-      c: this.c,
     };
 
     const results = await this.session.run(feeds);
+    const nextState = results['stateN'];
+    const output = results['output'];
+    if (!nextState || !output) {
+      throw new Error('Silero v5 returned an incomplete inference result');
+    }
 
-    // Update LSTM states for the next call.
-    this.h = results['hn'] as ort.Tensor;
-    this.c = results['cn'] as ort.Tensor;
+    this.state = nextState;
 
     // Output tensor contains the speech probability scalar.
-    const outputData = results['output'].data as Float32Array;
+    const outputData = output.data as Float32Array;
     return Math.max(0, Math.min(1, outputData[0]));
   }
 
@@ -104,12 +117,19 @@ export class SileroVad {
    * or when a long silence has occurred, to avoid state leakage).
    */
   reset(): void {
-    this.h = new ort.Tensor('float32', new Float32Array(2 * 1 * HIDDEN_SIZE), [2, 1, HIDDEN_SIZE]);
-    this.c = new ort.Tensor('float32', new Float32Array(2 * 1 * HIDDEN_SIZE), [2, 1, HIDDEN_SIZE]);
+    this.state = this.createState();
   }
 
   /** Whether the model has been loaded successfully. */
   isReady(): boolean {
     return this.session !== null;
+  }
+
+  private createState(): ort.Tensor {
+    return new ort.Tensor(
+      'float32',
+      new Float32Array(2 * HIDDEN_SIZE),
+      [2, 1, HIDDEN_SIZE],
+    );
   }
 }

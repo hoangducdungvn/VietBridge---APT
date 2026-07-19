@@ -16,6 +16,7 @@ MVP bilingual translation vertical slice — Voice, STT, Translation, and speake
 - Serialized each turn's partial/final boundary so `turn.end` waits for an in-flight partial before sending authoritative final STT, preventing overlapping requests for the same audio segment.
 - Added stale participant-turn recovery: Voice cancels an unended local turn before starting another, and Backend atomically supersedes any orphaned `started`/`streaming` segment instead of trapping the participant in repeated `PARTICIPANT_TURN_ACTIVE` errors.
 - Fixed deployed Silero VAD initialization by letting Vite fingerprint and publish the matching ONNX Runtime `.mjs`/`.wasm` assets, exposed `AI VAD`/fallback state in the meeting UI, retained 1.5 seconds of natural pause, and flushed tail PCM before `turn.end`.
+- Corrected the Silero v5 inference contract to use `input/state/sr` and `output/stateN`, converted continuous 320-sample capture frames into lossless 512-sample model windows, and added automatic runtime fallback to energy VAD after repeated inference failures.
 - Moved STT EOU analysis before trailing-silence trimming and preserved typed EOU metadata through the Backend provider, turn result, and room-wide STT events for production diagnostics.
 - Added an STT upstream request gate with final-request priority and configurable `STT_MAX_CONCURRENT_REQUESTS` (default `1`), disabled fallback amplification for best-effort partials, and retained one fallback attempt for finals.
 - Made FPT/Groq HTTP sessions thread-local and taught the standalone Voice mock gateway to surface structured STT errors returned inside HTTP 200 responses.
@@ -69,7 +70,7 @@ MVP bilingual translation vertical slice — Voice, STT, Translation, and speake
 - Tests: PASS — `npm run test -- --runInBand` passed 12 suites and 57 tests, including EOU provider mapping and the partial/final race regression test; Python STT tests passed 7 tests including request serialization and final EOU metrics.
 - Build: PASS — `npm run build` completed with 0 TypeScript errors.
 - Frontend: PASS — lint, 21 tests, and production build completed, including the right-side local source transcript, left-side remote translation, Socket.IO readiness, scrolling, and end-meeting cleanup.
-- Voice: PASS — TypeScript typecheck and production build completed with participant-isolated final/error handling.
+- Voice: PASS — TypeScript typecheck and production build completed; real ONNX inference contract checks passed for both Voice and deployed Frontend Silero models.
 - STT: PASS — Python unit tests and `compileall` completed; upstream calls are serialized with final priority by default.
 - Live Socket.IO smoke: PASS — host and guest connected to one backend session, both were online, and both transports upgraded to WebSocket.
 - LAN HTTPS gateway: PASS — trusted certificate hostname validation, `/health`, REST create/end, and Socket.IO WebSocket upgrade passed through the configured LAN HTTPS origin; the current Wi-Fi URL is `https://192.168.10.19:5173`.

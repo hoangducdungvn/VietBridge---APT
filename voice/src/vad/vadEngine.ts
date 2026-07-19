@@ -120,8 +120,15 @@ export class VadEngine {
   private silero: SileroVad | null = null;
   /** Last AI-inferred probability (cached for sync access in state machine). */
   private lastSileroProbability = 0;
-  /** Pending async Silero inference (avoids overlapping calls). */
+  /** Continuous PCM waiting to form exact 512-sample Silero v5 windows. */
+  private sileroSampleBuffer = new Float32Array(0);
+  /** Pending async Silero inference; model calls are kept sequential. */
   private sileroInferring = false;
+  private sileroHasResult = false;
+  private sileroFailureCount = 0;
+
+  private readonly SILERO_WINDOW_SAMPLES = 512;
+  private readonly SILERO_FAILURE_LIMIT = 3;
 
   constructor(config?: Partial<VadConfig>) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -161,25 +168,20 @@ export class VadEngine {
     // 2. Compute Zero-Crossing Rate
     const zcr = this.computeZCR(frame);
 
-    // 3. Compute speech probability
-    //    R2: If Silero is loaded, kick off async inference and use the
-    //    PREVIOUS frame's result synchronously (1-frame lag is imperceptible).
-    //    While Silero is initialising or when backend='energy', fall back.
+    // 3. Compute speech probability. Capture produces 320-sample/20ms frames,
+    //    while Silero v5 requires continuous 512-sample windows. Queue every
+    //    sample and run model calls sequentially so frames are never dropped.
+    const energyProbability = this.computeSpeechProbability(energy, zcr);
     let probability: number;
     if (this.config.backend === 'silero' && this.silero) {
-      probability = this.lastSileroProbability;
-      // Kick off inference for the NEXT frame (fire-and-forget)
-      if (!this.sileroInferring) {
-        this.sileroInferring = true;
-        this.silero.infer(frame).then((p) => {
-          this.lastSileroProbability = p;
-          this.sileroInferring = false;
-        }).catch(() => {
-          this.sileroInferring = false;
-        });
-      }
+      this.enqueueSileroSamples(frame);
+      // Energy bridges the first model window. After that Silero is
+      // authoritative unless repeated inference failures trigger fallback.
+      probability = this.sileroHasResult
+        ? this.lastSileroProbability
+        : energyProbability;
     } else {
-      probability = this.computeSpeechProbability(energy, zcr);
+      probability = energyProbability;
     }
 
     // 4. Push into sliding probability window
@@ -267,7 +269,60 @@ export class VadEngine {
     // R2: Reset Silero hidden states too
     this.silero?.reset();
     this.lastSileroProbability = 0;
+    this.sileroSampleBuffer = new Float32Array(0);
     this.sileroInferring = false;
+    this.sileroHasResult = false;
+    this.sileroFailureCount = 0;
+  }
+
+  private enqueueSileroSamples(frame: Float32Array): void {
+    const combined = new Float32Array(this.sileroSampleBuffer.length + frame.length);
+    combined.set(this.sileroSampleBuffer);
+    combined.set(frame, this.sileroSampleBuffer.length);
+    this.sileroSampleBuffer = combined;
+    this.runNextSileroWindow();
+  }
+
+  private runNextSileroWindow(): void {
+    if (
+      this.sileroInferring ||
+      !this.silero ||
+      this.config.backend !== 'silero' ||
+      this.sileroSampleBuffer.length < this.SILERO_WINDOW_SAMPLES
+    ) {
+      return;
+    }
+
+    const window = this.sileroSampleBuffer.slice(0, this.SILERO_WINDOW_SAMPLES);
+    this.sileroSampleBuffer = this.sileroSampleBuffer.slice(this.SILERO_WINDOW_SAMPLES);
+    this.sileroInferring = true;
+
+    void this.silero
+      .infer(window)
+      .then((speechProbability) => {
+        this.lastSileroProbability = speechProbability;
+        this.sileroHasResult = true;
+        this.sileroFailureCount = 0;
+      })
+      .catch((error: unknown) => {
+        this.sileroFailureCount += 1;
+        console.warn(
+          `[VadEngine] Silero inference failed (${this.sileroFailureCount}/${this.SILERO_FAILURE_LIMIT})`,
+          error,
+        );
+        if (this.sileroFailureCount >= this.SILERO_FAILURE_LIMIT) {
+          console.warn('[VadEngine] Falling back to energy VAD after repeated inference failures');
+          this.config.backend = 'energy';
+          this.silero = null;
+          this.sileroSampleBuffer = new Float32Array(0);
+          this.sileroHasResult = false;
+          this.lastSileroProbability = 0;
+        }
+      })
+      .finally(() => {
+        this.sileroInferring = false;
+        this.runNextSileroWindow();
+      });
   }
 
   // -----------------------------------------------------------------------
